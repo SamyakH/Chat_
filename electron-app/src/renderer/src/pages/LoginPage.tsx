@@ -1,10 +1,21 @@
-import { useState, FormEvent } from 'react'
-import { ShieldCheck, Lock } from 'lucide-react'
+import { useState, FormEvent, useEffect } from 'react'
+import { ShieldCheck, Lock, Trash2 } from 'lucide-react'
 
 export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
   const [passcode, setPasscode] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [profileName, setProfileName] = useState<string | null>(null)
+  const [confirmBurn, setConfirmBurn] = useState(false)
+
+  useEffect(() => {
+    // Load identity state to show user name
+    window.api.getIdentityState().then(state => {
+      if (state.profile) {
+        setProfileName(state.profile.displayName)
+      }
+    })
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -37,6 +48,9 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
             <ShieldCheck className="w-10 h-10 text-teal-400" />
           </div>
           <h1 className="text-2xl font-semibold text-white tracking-tight">Anon Chat</h1>
+          {profileName && (
+            <p className="text-teal-400 text-sm mt-2 font-medium">{profileName}</p>
+          )}
           <p className="text-gray-500 text-sm mt-1">Enter your passcode to unlock</p>
         </div>
 
@@ -72,6 +86,40 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
           >
             {loading ? 'Unlocking...' : 'Unlock'}
           </button>
+
+          {confirmBurn ? (
+            <div className="mt-6 p-4 bg-red-950/30 border border-red-900/40 rounded-xl">
+              <p className="text-red-400 text-sm mb-3">⚠️ This will PERMANENTLY DELETE ALL data. This cannot be undone.</p>
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setConfirmBurn(false)}
+                  className="flex-1 bg-gray-700 hover:bg-gray-600 text-white rounded-lg py-2 text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await window.api.burnAccount()
+                    window.location.reload()
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-500 text-white rounded-lg py-2 text-sm"
+                >
+                  PERMANENTLY DELETE
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmBurn(true)}
+              className="w-full mt-6 text-red-500 hover:text-red-400 text-sm flex items-center justify-center gap-2 opacity-60 hover:opacity-100 transition-opacity"
+            >
+              <Trash2 className="w-4 h-4" />
+              Burn Account
+            </button>
+          )}
         </form>
 
         <p className="text-center text-gray-700 text-xs mt-8">

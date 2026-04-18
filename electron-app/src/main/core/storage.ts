@@ -19,14 +19,15 @@ export function initStorage(): void {
   if (db) return
 
   // Dynamic require keeps native module out of renderer bundle
-  const Database = require('better-sqlite3') as typeof import('better-sqlite3')
+  const Database = require('better-sqlite3')
   db = new Database(getDbPath())
 
-  db.pragma('journal_mode = WAL')
-  db.pragma('foreign_keys = ON')
-  db.pragma('temp_store = MEMORY')
+  const database = db!
+  database.pragma('journal_mode = WAL')
+  database.pragma('foreign_keys = ON')
+  database.pragma('temp_store = MEMORY')
 
-  db.exec(`
+  database.exec(`
     CREATE TABLE IF NOT EXISTS contacts (
       id           TEXT PRIMARY KEY,
       display_name TEXT NOT NULL,
@@ -187,16 +188,16 @@ export function storeMessage(msg: {
     VALUES (?,?,?,?,?,?,?,?,?,?)
   `
   ).run(
-    msg.id,
-    msg.conversationId,
-    msg.contactId,
-    msg.direction,
-    msg.plaintext,
-    msg.ciphertext || null,
-    msg.nonce || null,
-    msg.signature || null,
-    msg.deliveryStatus ?? 'sent',
-    createdAt
+      msg.id,
+      msg.conversationId,
+      msg.contactId,
+      msg.direction,
+      msg.plaintext,
+      msg.ciphertext || null,
+      msg.nonce || null,
+      msg.signature || null,
+      msg.deliveryStatus ?? 'sent',
+      createdAt
   )
 
   d.prepare(

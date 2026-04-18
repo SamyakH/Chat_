@@ -72,7 +72,7 @@ function makeState(identity: IdentityRecord | null): IdentityState {
   return {
     hasIdentity: Boolean(identity),
     isUnlocked,
-    profile: isUnlocked && identity ? identity.profile : null
+    profile: identity ? identity.profile : null
   }
 }
 
@@ -80,8 +80,18 @@ export function getIdentityState(): IdentityState {
   return makeState(readIdentity())
 }
 
+let unlockedKeyMaterial: Uint8Array | null = null
+
 export function requireUnlocked(): void {
   if (!isUnlocked) throw new Error('Unlock the app to continue.')
+}
+
+export function getUnlockedKeyMaterial(): Uint8Array {
+  requireUnlocked()
+  if (!unlockedKeyMaterial) {
+    throw new Error('Key material not available')
+  }
+  return unlockedKeyMaterial
 }
 
 export function getIdentityProfile(): IdentityProfile {
@@ -156,12 +166,34 @@ export function unlockIdentity(passcode: string): IdentityState {
   }
 
   isUnlocked = true
+  
+  // Initialize storage after successful unlock
+  try {
+    initStorage()
+  } catch {
+    isUnlocked = false
+    throw new Error('Failed to initialize secure storage')
+  }
+  
   return makeState(identity)
 }
 
 export function lockIdentity(): IdentityState {
   isUnlocked = false
+  closeStorage()
   return makeState(readIdentity())
+}
+
+export function burnAccount(): void {
+  // Emergency wipe all data
+  isUnlocked = false
+  try {
+    closeStorage()
+    // Recursively delete entire user data directory
+    fs.rmSync(getDataDir(), { recursive: true, force: true, maxRetries: 5 })
+  } catch {
+    // Ignore cleanup errors
+  }
 }
 
 export function updateIdentityProfile(payload: {
