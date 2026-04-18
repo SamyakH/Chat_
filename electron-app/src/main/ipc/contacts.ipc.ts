@@ -2,7 +2,13 @@ import type { IpcMain } from 'electron'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { requireUnlocked, getIdentityProfile } from '../core/identity'
-import { storeContact, loadContacts, deleteContact, blockContact, initStorage } from '../core/storage'
+import {
+  storeContact,
+  loadContacts,
+  deleteContact,
+  blockContact,
+  initStorage
+} from '../core/storage'
 import { computeFingerprint } from '../core/cryptography'
 import type { Contact } from '../../shared/api'
 
@@ -71,7 +77,10 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     try {
       storeContact(contact)
     } catch (error) {
-      if (error instanceof Error && error.message.includes('UNIQUE constraint failed: contacts.fingerprint')) {
+      if (
+        error instanceof Error &&
+        error.message.includes('UNIQUE constraint failed: contacts.fingerprint')
+      ) {
         throw new Error('This contact is already in your list.')
       }
       throw error
@@ -99,7 +108,12 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     requireUnlocked()
     initStorage()
     const { qrData } = AddFromQrSchema.parse(payload)
-    let parsed: { publicId?: string; displayName?: string; edPublicKey?: string; xPublicKey?: string }
+    let parsed: {
+      publicId?: string
+      displayName?: string
+      edPublicKey?: string
+      xPublicKey?: string
+    }
     try {
       parsed = JSON.parse(qrData)
     } catch {
@@ -136,7 +150,10 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     try {
       storeContact(contact)
     } catch (error) {
-      if (error instanceof Error && error.message.includes('UNIQUE constraint failed: contacts.fingerprint')) {
+      if (
+        error instanceof Error &&
+        error.message.includes('UNIQUE constraint failed: contacts.fingerprint')
+      ) {
         throw new Error('This contact is already in your list.')
       }
       throw error

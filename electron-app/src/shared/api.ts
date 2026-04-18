@@ -53,7 +53,11 @@ export interface QrCodePayload {
 
 export interface Api {
   getIdentityState(): Promise<IdentityState>
-  createIdentity(p: { displayName: string; statusLine: string; passcode: string }): Promise<IdentityState>
+  createIdentity(p: {
+    displayName: string
+    statusLine: string
+    passcode: string
+  }): Promise<IdentityState>
   unlockIdentity(p: { passcode: string }): Promise<IdentityState>
   lockIdentity(): Promise<IdentityState>
   updateIdentityProfile(p: { displayName: string; statusLine: string }): Promise<IdentityState>

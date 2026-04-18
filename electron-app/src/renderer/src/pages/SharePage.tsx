@@ -4,7 +4,10 @@ import { Copy, RefreshCw, Share2 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import QRDisplay from '../components/QRDisplay'
 
-interface Profile { displayName: string; publicId: string }
+interface Profile {
+  displayName: string
+  publicId: string
+}
 
 export default function SharePage(): ReactElement {
   const [profile, setProfile] = useState<Profile | null>(null)
@@ -24,7 +27,7 @@ export default function SharePage(): ReactElement {
   }
 
   useEffect(() => {
-    void load()
+    setTimeout(load, 0)
   }, [])
 
   async function handleRegenerate(): Promise<void> {
@@ -53,36 +56,38 @@ export default function SharePage(): ReactElement {
             <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
               {error}
             </div>
-          ) : profile && (
-            <>
-              <div className="text-center">
-                <p className="text-gray-400 text-sm mb-1">{profile.displayName}</p>
-                <p className="text-xs text-gray-600 font-mono">{profile.publicId}</p>
-              </div>
+          ) : (
+            profile && (
+              <>
+                <div className="text-center">
+                  <p className="text-gray-400 text-sm mb-1">{profile.displayName}</p>
+                  <p className="text-xs text-gray-600 font-mono">{profile.publicId}</p>
+                </div>
 
-              <QRDisplay data={qrData} size={220} />
+                <QRDisplay data={qrData} size={220} />
 
-              <div className="flex gap-3">
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <Copy className="w-4 h-4" />
-                  {copied ? 'Copied!' : 'Copy Payload'}
-                </button>
-                <button
-                  onClick={handleRegenerate}
-                  className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
-                >
-                  <RefreshCw className="w-4 h-4" /> Regenerate
-                </button>
-              </div>
+                <div className="flex gap-3">
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <Copy className="w-4 h-4" />
+                    {copied ? 'Copied!' : 'Copy Payload'}
+                  </button>
+                  <button
+                    onClick={handleRegenerate}
+                    className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    <RefreshCw className="w-4 h-4" /> Regenerate
+                  </button>
+                </div>
 
-              <p className="text-gray-600 text-xs text-center max-w-xs">
-                Ask your contact to scan this QR code, or share your Public ID manually.
-                No personal data is embedded.
-              </p>
-            </>
+                <p className="text-gray-600 text-xs text-center max-w-xs">
+                  Ask your contact to scan this QR code, or share your Public ID manually. No
+                  personal data is embedded.
+                </p>
+              </>
+            )
           )}
         </div>
       </div>

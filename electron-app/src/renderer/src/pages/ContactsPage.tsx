@@ -22,7 +22,9 @@ export default function ContactsPage() {
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    setTimeout(load, 0)
+  }, [])
 
   async function handleDelete(id: string) {
     if (!confirm('Remove this contact?')) return

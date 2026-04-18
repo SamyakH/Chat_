@@ -21,9 +21,7 @@ export default function MessageBubble({ message }: Props) {
     <div className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-xs lg:max-w-md px-4 py-2.5 rounded-2xl ${
-          out
-            ? 'bg-teal-700 text-white rounded-br-sm'
-            : 'bg-gray-800 text-gray-100 rounded-bl-sm'
+          out ? 'bg-teal-700 text-white rounded-br-sm' : 'bg-gray-800 text-gray-100 rounded-bl-sm'
         }`}
       >
         <p className="text-sm leading-relaxed break-words">{message.plaintext}</p>

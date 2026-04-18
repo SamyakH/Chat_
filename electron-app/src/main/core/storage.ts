@@ -93,7 +93,11 @@ function getDb(): import('better-sqlite3').Database {
 
 export function closeStorage(): void {
   if (db) {
-    try { db.close() } catch { /* ignore */ }
+    try {
+      db.close()
+    } catch {
+      /* ignore */
+    }
     db = null
   }
 }
@@ -111,11 +115,13 @@ export function storeContact(contact: {
 }): void {
   const createdAt = contact.createdAt ?? Date.now()
   getDb()
-    .prepare(`
+    .prepare(
+      `
       INSERT INTO contacts
         (id, display_name, fingerprint, ed_public_key, x_public_key, note, created_at)
       VALUES (?,?,?,?,?,?,?)
-    `)
+    `
+    )
     .run(
       contact.id,
       contact.displayName,
@@ -134,9 +140,11 @@ export function loadContacts(): unknown[] {
 }
 
 export function getContactById(id: string): unknown | null {
-  return getDb()
-    .prepare('SELECT * FROM contacts WHERE id = ? AND is_blocked = 0')
-    .get(id) as unknown || null
+  return (
+    (getDb()
+      .prepare('SELECT * FROM contacts WHERE id = ? AND is_blocked = 0')
+      .get(id) as unknown) || null
+  )
 }
 
 export function blockContact(id: string): void {
@@ -165,16 +173,20 @@ export function storeMessage(msg: {
   const createdAt = msg.createdAt ?? Date.now()
 
   // Create conversation row if it doesn't exist
-  d.prepare(`
+  d.prepare(
+    `
     INSERT OR IGNORE INTO conversations (id, contact_id, created_at)
     VALUES (?,?,?)
-  `).run(msg.conversationId, msg.contactId, createdAt)
+  `
+  ).run(msg.conversationId, msg.contactId, createdAt)
 
-  d.prepare(`
+  d.prepare(
+    `
     INSERT INTO messages
       (id, conversation_id, contact_id, direction, plaintext, ciphertext, nonce, signature, delivery_status, created_at)
     VALUES (?,?,?,?,?,?,?,?,?,?)
-  `).run(
+  `
+  ).run(
     msg.id,
     msg.conversationId,
     msg.contactId,
@@ -187,20 +199,24 @@ export function storeMessage(msg: {
     createdAt
   )
 
-  d.prepare(`
+  d.prepare(
+    `
     UPDATE conversations
     SET last_activity_at = ?, message_count = message_count + 1
     WHERE id = ?
-  `).run(createdAt, msg.conversationId)
+  `
+  ).run(createdAt, msg.conversationId)
 }
 
 export function loadMessages(conversationId: string): unknown[] {
   return getDb()
-    .prepare(`
+    .prepare(
+      `
       SELECT * FROM messages
       WHERE conversation_id = ? AND is_deleted = 0
       ORDER BY created_at ASC
-    `)
+    `
+    )
     .all(conversationId)
 }
 
@@ -208,9 +224,7 @@ export function updateDeliveryStatus(
   messageId: string,
   status: 'sent' | 'delivered' | 'failed'
 ): void {
-  getDb()
-    .prepare('UPDATE messages SET delivery_status = ? WHERE id = ?')
-    .run(status, messageId)
+  getDb().prepare('UPDATE messages SET delivery_status = ? WHERE id = ?').run(status, messageId)
 }
 
 export function softDeleteMessage(messageId: string): void {
@@ -224,48 +238,62 @@ export function trackNonce(nonceValue: string): boolean {
   // Purge expired nonces first
   d.prepare('DELETE FROM session_nonces WHERE expires_at < ?').run(Date.now())
 
-  const exists = d
-    .prepare('SELECT id FROM session_nonces WHERE nonce_value = ?')
-    .get(nonceValue)
+  const exists = d.prepare('SELECT id FROM session_nonces WHERE nonce_value = ?').get(nonceValue)
 
   if (exists) return false // Replay detected
 
-  d.prepare(`
+  d.prepare(
+    `
     INSERT INTO session_nonces (id, nonce_value, used_at, expires_at)
     VALUES (?,?,?,?)
-  `).run(randomUUID(), nonceValue, Date.now(), Date.now() + 86_400_000)
+  `
+  ).run(randomUUID(), nonceValue, Date.now(), Date.now() + 86_400_000)
 
   return true
 }
 
 // ── Identity Key Pairs ────────────────────────────────────────────────────────
 
-export function storeIdentityKeys(signingKeys: {
-  publicKey: string
-  privateKey: string
-}, exchangeKeys: {
-  publicKey: string
-  privateKey: string
-}): void {
+export function storeIdentityKeys(
+  signingKeys: {
+    publicKey: string
+    privateKey: string
+  },
+  exchangeKeys: {
+    publicKey: string
+    privateKey: string
+  }
+): void {
   const d = getDb()
-  d.prepare(`
+  d.prepare(
+    `
     INSERT OR REPLACE INTO identity_keys (key_type, public_key, private_key, created_at)
     VALUES (?, ?, ?, ?)
-  `).run('signing', signingKeys.publicKey, signingKeys.privateKey, Date.now())
-  
-  d.prepare(`
+  `
+  ).run('signing', signingKeys.publicKey, signingKeys.privateKey, Date.now())
+
+  d.prepare(
+    `
     INSERT OR REPLACE INTO identity_keys (key_type, public_key, private_key, created_at)
     VALUES (?, ?, ?, ?)
-  `).run('exchange', exchangeKeys.publicKey, exchangeKeys.privateKey, Date.now())
+  `
+  ).run('exchange', exchangeKeys.publicKey, exchangeKeys.privateKey, Date.now())
 }
 
-export function getIdentityKeys(): { signing: { publicKey: string; privateKey: string }; exchange: { publicKey: string; privateKey: string } } | null {
+export function getIdentityKeys(): {
+  signing: { publicKey: string; privateKey: string }
+  exchange: { publicKey: string; privateKey: string }
+} | null {
   const d = getDb()
-  const signing = d.prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?').get('signing') as any
-  const exchange = d.prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?').get('exchange') as any
-  
+  const signing = d
+    .prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?')
+    .get('signing') as any
+  const exchange = d
+    .prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?')
+    .get('exchange') as any
+
   if (!signing || !exchange) return null
-  
+
   return {
     signing: { publicKey: signing.public_key, privateKey: signing.private_key },
     exchange: { publicKey: exchange.public_key, privateKey: exchange.private_key }

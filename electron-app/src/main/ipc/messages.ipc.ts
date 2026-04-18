@@ -2,7 +2,15 @@ import type { IpcMain } from 'electron'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { requireUnlocked } from '../core/identity'
-import { storeMessage, loadMessages, softDeleteMessage, updateDeliveryStatus, getIdentityKeys, getContactById, initStorage } from '../core/storage'
+import {
+  storeMessage,
+  loadMessages,
+  softDeleteMessage,
+  updateDeliveryStatus,
+  getIdentityKeys,
+  getContactById,
+  initStorage
+} from '../core/storage'
 import { initCrypto, encryptMessage, deriveSessionKey } from '../core/cryptography'
 import type { Message } from '../../shared/api'
 

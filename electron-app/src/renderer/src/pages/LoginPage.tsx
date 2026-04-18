@@ -3,7 +3,7 @@ import { ShieldCheck, Lock } from 'lucide-react'
 
 export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
   const [passcode, setPasscode] = useState('')
-  const [error, setError]     = useState('')
+  const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function handleSubmit(e: FormEvent) {

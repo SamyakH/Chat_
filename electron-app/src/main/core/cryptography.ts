@@ -1,13 +1,13 @@
 import { createHash, randomBytes } from 'crypto'
 
 // Libsodium is async — call initCrypto() once before using anything
-let sodium: typeof import('libsodium-wrappers') | null = null
+let sodium: typeof import('libsodium-wrappers').default | null = null
 
 export async function initCrypto(): Promise<void> {
   if (sodium) return
   const lib = await import('libsodium-wrappers')
-  await lib.ready
-  sodium = lib
+  await lib.default.ready
+  sodium = lib.default
 }
 
 function getSodium() {
@@ -16,19 +16,19 @@ function getSodium() {
 }
 
 export interface SigningKeyPair {
-  publicKey: string  // base64
+  publicKey: string // base64
   privateKey: string // base64
 }
 
 export interface ExchangeKeyPair {
-  publicKey: string  // base64
+  publicKey: string // base64
   privateKey: string // base64
 }
 
 export interface EncryptedPacket {
   ciphertext: string // base64
-  nonce: string      // base64
-  signature: string  // base64
+  nonce: string // base64
+  signature: string // base64
 }
 
 // Generate Ed25519 signing key pair

@@ -27,9 +27,7 @@ export default function ContactCard({ contact, onDelete, onBlock }: Props) {
         <p className="text-xs text-gray-500 font-mono truncate">
           {contact.fingerprint.slice(0, 24)}...
         </p>
-        {contact.note && (
-          <p className="text-xs text-gray-600 truncate mt-0.5">{contact.note}</p>
-        )}
+        {contact.note && <p className="text-xs text-gray-600 truncate mt-0.5">{contact.note}</p>}
       </div>
 
       <div className="flex gap-1">

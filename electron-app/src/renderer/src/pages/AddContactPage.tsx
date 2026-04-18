@@ -41,8 +41,14 @@ export default function AddContactPage() {
 
   async function handleAdd() {
     setError('')
-    if (!displayName.trim()) { setError('Display name is required'); return }
-    if (!contactPayload.trim()) { setError('Contact payload is required'); return }
+    if (!displayName.trim()) {
+      setError('Display name is required')
+      return
+    }
+    if (!contactPayload.trim()) {
+      setError('Contact payload is required')
+      return
+    }
 
     let parsedPayload: ParsedContactPayload
     try {
@@ -118,12 +124,13 @@ export default function AddContactPage() {
                   <textarea
                     value={contactPayload}
                     onChange={(e) => setPayload(e.target.value)}
-                    placeholder='Paste the shared payload JSON from the Share page'
+                    placeholder="Paste the shared payload JSON from the Share page"
                     rows={4}
                     className="w-full bg-gray-900 border border-gray-800 focus:border-teal-500 rounded-2xl px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors font-mono text-sm"
                   />
                   <p className="text-xs text-gray-600 mt-1">
-                    Paste the complete shared payload from the Share page. Raw public key strings are not accepted.
+                    Paste the complete shared payload from the Share page. Raw public key strings
+                    are not accepted.
                   </p>
                 </div>
 

@@ -2,19 +2,25 @@ import { useState, FormEvent } from 'react'
 import { ShieldCheck, User, Lock, ChevronRight, ChevronLeft } from 'lucide-react'
 
 export default function OnboardingPage({ onCreated }: { onCreated: () => void }) {
-  const [step, setStep]             = useState<1 | 2>(1)
-  const [displayName, setName]      = useState('')
-  const [statusLine, setStatus]     = useState('')
-  const [passcode, setPasscode]     = useState('')
-  const [confirm, setConfirm]       = useState('')
-  const [error, setError]           = useState('')
-  const [loading, setLoading]       = useState(false)
+  const [step, setStep] = useState<1 | 2>(1)
+  const [displayName, setName] = useState('')
+  const [statusLine, setStatus] = useState('')
+  const [passcode, setPasscode] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   async function handleCreate(e: FormEvent) {
     e.preventDefault()
     setError('')
-    if (passcode !== confirm) { setError('Passcodes do not match'); return }
-    if (passcode.length < 4)  { setError('Passcode must be at least 4 characters'); return }
+    if (passcode !== confirm) {
+      setError('Passcodes do not match')
+      return
+    }
+    if (passcode.length < 4) {
+      setError('Passcode must be at least 4 characters')
+      return
+    }
     setLoading(true)
     try {
       await window.api.createIdentity({ displayName, statusLine, passcode })
@@ -87,7 +93,9 @@ export default function OnboardingPage({ onCreated }: { onCreated: () => void })
             </div>
 
             <button
-              onClick={() => { if (displayName.trim().length >= 2) setStep(2) }}
+              onClick={() => {
+                if (displayName.trim().length >= 2) setStep(2)
+              }}
               disabled={displayName.trim().length < 2}
               className="w-full flex items-center justify-center gap-2 bg-teal-600 hover:bg-teal-500 disabled:bg-gray-800 disabled:text-gray-600 text-white rounded-xl py-3 font-medium transition-colors"
             >

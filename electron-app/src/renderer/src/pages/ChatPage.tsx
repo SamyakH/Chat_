@@ -7,16 +7,16 @@ import EncryptionBadge from '../components/EncryptionBadge'
 import type { Contact, Message } from '../../../shared/api'
 
 export default function ChatPage() {
-  const { contactId }   = useParams<{ contactId: string }>()
+  const { contactId } = useParams<{ contactId: string }>()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
-  const [text, setText]         = useState('')
-  const [sending, setSending]   = useState(false)
+  const [text, setText] = useState('')
+  const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const selected = contacts.find((c) => c.id === contactId) ?? null
-  const convId   = selected ? `conv-${selected.id}` : null
+  const convId = selected ? `conv-${selected.id}` : null
 
   useEffect(() => {
     window.api
@@ -28,8 +28,11 @@ export default function ChatPage() {
   }, [])
 
   useEffect(() => {
-    if (!convId) { setMessages([]); return }
-    setError('')
+    if (!convId) {
+      setTimeout(() => setMessages([]), 0)
+      return
+    }
+    setTimeout(() => setError(''), 0)
     window.api
       .loadMessages(convId)
       .then((m) => setMessages(m))
@@ -47,7 +50,11 @@ export default function ChatPage() {
     setSending(true)
     setError('')
     try {
-      const msg = await window.api.sendMessage({ contactId: selected.id, conversationId: convId, text: text.trim() })
+      const msg = await window.api.sendMessage({
+        contactId: selected.id,
+        conversationId: convId,
+        text: text.trim()
+      })
       setMessages((prev) => [...prev, msg])
       setText('')
     } catch (err: unknown) {
@@ -63,13 +70,18 @@ export default function ChatPage() {
         {/* Contact list sidebar */}
         <div className="w-60 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0">
           <div className="px-4 py-3 border-b border-gray-800">
-            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Conversations</h2>
+            <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+              Conversations
+            </h2>
           </div>
           <div className="flex-1 overflow-y-auto py-1">
             {contacts.length === 0 ? (
               <div className="p-4 text-center">
                 <p className="text-gray-600 text-xs mb-3">No contacts yet</p>
-                <Link to="/add-contact" className="text-teal-500 text-xs hover:text-teal-400 flex items-center justify-center gap-1">
+                <Link
+                  to="/add-contact"
+                  className="text-teal-500 text-xs hover:text-teal-400 flex items-center justify-center gap-1"
+                >
                   <UserPlus className="w-3 h-3" /> Add first contact
                 </Link>
               </div>
@@ -91,7 +103,9 @@ export default function ChatPage() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-white truncate">{c.displayName}</p>
-                    <p className="text-[10px] text-gray-600 font-mono truncate">{c.fingerprint.slice(0,16)}…</p>
+                    <p className="text-[10px] text-gray-600 font-mono truncate">
+                      {c.fingerprint.slice(0, 16)}…
+                    </p>
                   </div>
                 </Link>
               ))
@@ -105,11 +119,15 @@ export default function ChatPage() {
             {/* Header */}
             <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-3 bg-gray-950">
               <div className="w-8 h-8 rounded-full bg-teal-900/60 flex items-center justify-center">
-                <span className="text-sm font-bold text-teal-300">{selected.displayName.charAt(0).toUpperCase()}</span>
+                <span className="text-sm font-bold text-teal-300">
+                  {selected.displayName.charAt(0).toUpperCase()}
+                </span>
               </div>
               <div>
                 <p className="font-semibold text-white text-sm">{selected.displayName}</p>
-                <p className="text-[10px] text-gray-500 font-mono">{selected.fingerprint.slice(0,20)}…</p>
+                <p className="text-[10px] text-gray-500 font-mono">
+                  {selected.fingerprint.slice(0, 20)}…
+                </p>
               </div>
               <div className="ml-auto">
                 <EncryptionBadge />
@@ -123,7 +141,9 @@ export default function ChatPage() {
                   {error}
                 </div>
               )}
-              {messages.map((m) => <MessageBubble key={m.id} message={m} />)}
+              {messages.map((m) => (
+                <MessageBubble key={m.id} message={m} />
+              ))}
               <div ref={bottomRef} />
             </div>
 

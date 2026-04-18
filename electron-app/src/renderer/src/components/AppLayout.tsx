@@ -6,12 +6,12 @@ interface Props {
 }
 
 const NAV = [
-  { to: '/chat',        Icon: MessageSquare, label: 'Chat' },
-  { to: '/contacts',    Icon: Users,         label: 'Contacts' },
-  { to: '/add-contact', Icon: UserPlus,      label: 'Add Contact' },
-  { to: '/scan-contact',Icon: QrCode,        label: 'Scan QR' },
-  { to: '/share',       Icon: Share2,        label: 'Share Identity' },
-  { to: '/settings',    Icon: Settings,      label: 'Settings' },
+  { to: '/chat', Icon: MessageSquare, label: 'Chat' },
+  { to: '/contacts', Icon: Users, label: 'Contacts' },
+  { to: '/add-contact', Icon: UserPlus, label: 'Add Contact' },
+  { to: '/scan-contact', Icon: QrCode, label: 'Scan QR' },
+  { to: '/share', Icon: Share2, label: 'Share Identity' },
+  { to: '/settings', Icon: Settings, label: 'Settings' }
 ]
 
 export default function AppLayout({ children }: Props) {

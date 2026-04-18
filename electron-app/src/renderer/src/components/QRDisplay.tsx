@@ -8,12 +8,7 @@ interface Props {
 export default function QRDisplay({ data, size = 200 }: Props) {
   return (
     <div className="inline-flex p-4 bg-white rounded-xl shadow-lg">
-      <QRCodeSVG
-        value={data}
-        size={size}
-        level="H"
-        includeMargin={false}
-      />
+      <QRCodeSVG value={data} size={size} level="H" includeMargin={false} />
     </div>
   )
 }

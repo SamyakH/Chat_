@@ -24,41 +24,45 @@ export default function ScanContactPage() {
     const config = {
       fps: 10,
       qrbox: { width: 280, height: 280 },
-      aspectRatio: 1.0,
+      aspectRatio: 1.0
     }
 
-    html5QrCode.start(
-      { facingMode: 'environment' },
-      config,
-      (decodedText: string) => {
-        if (handledScanRef.current) return
-        handledScanRef.current = true
-        setError('')
-        setStatus('QR code detected — importing contact...')
-        void window.api.addContactFromQr({ qrData: decodedText })
-          .then(() => {
-            setSuccess(true)
-            setStatus('Contact added successfully!')
-            void stopScanner().catch(() => {})
-          })
-          .then(() => {
-            setTimeout(() => navigate('/contacts'), 1200)
-          })
-          .catch((err: unknown) => {
-            handledScanRef.current = false
-            setError(err instanceof Error ? err.message : 'Failed to import contact from QR')
-            setStatus('Point your camera at a valid contact QR code')
-          })
-      },
-      () => {
-        // ignore occasional scan failures
-      }
-    )
+    html5QrCode
+      .start(
+        { facingMode: 'environment' },
+        config,
+        (decodedText: string) => {
+          if (handledScanRef.current) return
+          handledScanRef.current = true
+          setError('')
+          setStatus('QR code detected — importing contact...')
+          void window.api
+            .addContactFromQr({ qrData: decodedText })
+            .then(() => {
+              setSuccess(true)
+              setStatus('Contact added successfully!')
+              void stopScanner().catch(() => {})
+            })
+            .then(() => {
+              setTimeout(() => navigate('/contacts'), 1200)
+            })
+            .catch((err: unknown) => {
+              handledScanRef.current = false
+              setError(err instanceof Error ? err.message : 'Failed to import contact from QR')
+              setStatus('Point your camera at a valid contact QR code')
+            })
+        },
+        () => {
+          // ignore occasional scan failures
+        }
+      )
       .then(() => {
         scannerRunning = true
       })
       .catch((err) => {
-        setError('Unable to start camera scanner: ' + (err instanceof Error ? err.message : String(err)))
+        setError(
+          'Unable to start camera scanner: ' + (err instanceof Error ? err.message : String(err))
+        )
       })
 
     return () => {
@@ -80,8 +84,13 @@ export default function ScanContactPage() {
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 text-center">
               <Camera className="mx-auto mb-4 w-10 h-10 text-teal-400" />
-              <p className="text-sm text-gray-300 mb-2">Use your webcam to scan a secure contact QR code.</p>
-              <div id="qr-reader" className="mx-auto w-full max-w-md rounded-3xl overflow-hidden bg-black" />
+              <p className="text-sm text-gray-300 mb-2">
+                Use your webcam to scan a secure contact QR code.
+              </p>
+              <div
+                id="qr-reader"
+                className="mx-auto w-full max-w-md rounded-3xl overflow-hidden bg-black"
+              />
             </div>
 
             {error && (
@@ -99,7 +108,8 @@ export default function ScanContactPage() {
                 <p className="mt-3 text-sm text-teal-300">Redirecting to contacts...</p>
               ) : (
                 <p className="mt-3 text-sm text-gray-500">
-                  If your camera doesn't start, you can manually add a contact using the QR payload from the other device.
+                  If your camera doesn't start, you can manually add a contact using the QR payload
+                  from the other device.
                 </p>
               )}
             </div>

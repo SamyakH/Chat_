@@ -64,7 +64,7 @@ export class P2PNetwork extends EventEmitter {
       // 2. Gathering ICE candidates
       // 3. Exchanging SDP via signaling server
       // 4. Establishing data channel
-      
+
       const conn = this.peerConnections.get(remotePublicId)!
       conn.status = 'connected'
       conn.connectedAt = Date.now()
@@ -98,7 +98,7 @@ export class P2PNetwork extends EventEmitter {
     }
   ): Promise<void> {
     const connection = this.peerConnections.get(recipientId)
-    
+
     if (!connection || connection.status !== 'connected') {
       // Queue message for later delivery
       this.messageQueue.push({
@@ -138,9 +138,7 @@ export class P2PNetwork extends EventEmitter {
    * Get all active connections
    */
   getActiveConnections(): PeerConnection[] {
-    return Array.from(this.peerConnections.values()).filter(
-      c => c.status === 'connected'
-    )
+    return Array.from(this.peerConnections.values()).filter((c) => c.status === 'connected')
   }
 
   /**
