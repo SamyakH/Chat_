@@ -15,11 +15,16 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
   const [error, setError]       = useState('')
 
   useEffect(() => {
-    window.api.getWorkspaceSummary().then((s) => {
-      setProfile(s.profile)
-      setName(s.profile.displayName)
-      setStatus(s.profile.statusLine)
-    })
+    window.api
+      .getWorkspaceSummary()
+      .then((s) => {
+        setProfile(s.profile)
+        setName(s.profile.displayName)
+        setStatus(s.profile.statusLine)
+      })
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load settings')
+      })
   }, [])
 
   async function handleSave() {
@@ -43,7 +48,12 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
   async function handleWipe() {
     if (wipeText !== 'DESTROY') return
     setWiping(true)
-    await window.api.executeWipe({ confirmation: 'DESTROY' })
+    try {
+      await window.api.executeWipe({ confirmation: 'DESTROY' })
+      window.location.reload()
+    } finally {
+      setWiping(false)
+    }
   }
 
   return (
@@ -130,7 +140,7 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
                 <div>
                   <p className="text-sm font-medium text-red-400">Burn Account</p>
                   <p className="text-xs text-red-900/80 mt-1">
-                    Permanently destroys all keys, messages, and contacts using a 7-pass DoD overwrite.
+                    Permanently deletes all local keys, messages, and contacts from this device.
                     This action is <strong className="text-red-500">irreversible</strong>.
                   </p>
                 </div>

@@ -10,11 +10,17 @@ export default function SharePage(): ReactElement {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [qrData, setQrData] = useState('')
   const [copied, setCopied] = useState(false)
+  const [error, setError] = useState('')
 
   async function load(): Promise<void> {
-    const qr = await window.api.getQrCode()
-    setQrData(qr.qrData)
-    setProfile({ displayName: qr.displayName, publicId: qr.publicId })
+    setError('')
+    try {
+      const qr = await window.api.getQrCode()
+      setQrData(qr.qrData)
+      setProfile({ displayName: qr.displayName, publicId: qr.publicId })
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to load share payload')
+    }
   }
 
   useEffect(() => {
@@ -43,7 +49,11 @@ export default function SharePage(): ReactElement {
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
-          {profile && (
+          {error ? (
+            <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+              {error}
+            </div>
+          ) : profile && (
             <>
               <div className="text-center">
                 <p className="text-gray-400 text-sm mb-1">{profile.displayName}</p>
@@ -58,7 +68,7 @@ export default function SharePage(): ReactElement {
                   className="flex items-center gap-2 bg-gray-800 hover:bg-gray-700 text-gray-300 px-4 py-2.5 rounded-lg text-sm font-medium transition-colors"
                 >
                   <Copy className="w-4 h-4" />
-                  {copied ? 'Copied!' : 'Copy ID'}
+                  {copied ? 'Copied!' : 'Copy Payload'}
                 </button>
                 <button
                   onClick={handleRegenerate}

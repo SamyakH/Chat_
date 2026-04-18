@@ -1,13 +1,8 @@
 import { CheckCheck, Check, Clock } from 'lucide-react'
+import type { Message } from '../../../shared/api'
 
 interface Props {
-  message: {
-    id: string
-    direction: 'incoming' | 'outgoing'
-    plaintext: string
-    deliveryStatus: string
-    createdAt: number
-  }
+  message: Pick<Message, 'id' | 'direction' | 'plaintext' | 'deliveryStatus' | 'createdAt'>
 }
 
 function formatTime(ts: number) {

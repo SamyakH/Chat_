@@ -13,21 +13,33 @@ type AppState = 'loading' | 'no-identity' | 'locked' | 'unlocked'
 
 export default function App() {
   const [appState, setAppState] = useState<AppState>('loading')
+  const [bootstrapError, setBootstrapError] = useState('')
 
   useEffect(() => {
-    window.api.getIdentityState().then((s) => {
-      if (!s.hasIdentity) setAppState('no-identity')
-      else if (!s.isUnlocked) setAppState('locked')
-      else setAppState('unlocked')
-    })
+    window.api
+      .getIdentityState()
+      .then((s) => {
+        if (!s.hasIdentity) setAppState('no-identity')
+        else if (!s.isUnlocked) setAppState('locked')
+        else setAppState('unlocked')
+      })
+      .catch((err: unknown) => {
+        setBootstrapError(err instanceof Error ? err.message : 'Failed to initialize the app')
+      })
   }, [])
 
   if (appState === 'loading') {
     return (
       <div className="flex h-screen items-center justify-center bg-gray-950">
-        <div className="text-xs text-gray-600 tracking-[0.3em] animate-pulse uppercase">
-          Initializing secure environment...
-        </div>
+        {bootstrapError ? (
+          <div className="max-w-md rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+            {bootstrapError}
+          </div>
+        ) : (
+          <div className="text-xs text-gray-600 tracking-[0.3em] animate-pulse uppercase">
+            Initializing secure environment...
+          </div>
+        )}
       </div>
     )
   }

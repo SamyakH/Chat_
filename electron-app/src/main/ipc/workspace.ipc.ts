@@ -11,6 +11,7 @@ export function registerWorkspaceIpc(ipcMain: IpcMain): void {
 
   ipcMain.handle('workspace:get-summary', () => {
     requireUnlocked()
+    initStorage()
     const profile = getIdentityProfile()
     const contacts = loadContacts()
     return { profile, contactCount: (contacts as unknown[]).length }

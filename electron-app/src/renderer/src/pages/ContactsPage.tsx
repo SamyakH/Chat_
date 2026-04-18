@@ -3,39 +3,46 @@ import { Link } from 'react-router-dom'
 import { UserPlus, Users, QrCode } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import ContactCard from '../components/ContactCard'
-
-interface ApiContact { id: string; display_name: string; fingerprint: string; note: string }
-interface Contact { id: string; displayName: string; fingerprint: string; note: string }
-
-function mapContact(raw: ApiContact): Contact {
-  return {
-    id: raw.id,
-    displayName: raw.display_name,
-    fingerprint: raw.fingerprint,
-    note: raw.note,
-  }
-}
+import type { Contact } from '../../../shared/api'
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
 
   function load() {
     setLoading(true)
-    window.api.listContacts().then((c) => setContacts((c as ApiContact[]).map(mapContact))).finally(() => setLoading(false))
+    setError('')
+    window.api
+      .listContacts()
+      .then((c) => setContacts(c))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load contacts')
+      })
+      .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
 
   async function handleDelete(id: string) {
     if (!confirm('Remove this contact?')) return
-    await window.api.deleteContact(id)
-    load()
+    setError('')
+    try {
+      await window.api.deleteContact(id)
+      load()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to delete contact')
+    }
   }
 
   async function handleBlock(id: string) {
-    await window.api.blockContact(id)
-    load()
+    setError('')
+    try {
+      await window.api.blockContact(id)
+      load()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to block contact')
+    }
   }
 
   return (
@@ -60,7 +67,15 @@ export default function ContactsPage() {
 
         {/* List */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {contacts.length === 0 ? (
+          {error ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-red-400">{error}</p>
+            </div>
+          ) : loading && contacts.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <p className="text-sm text-gray-500">Loading contacts...</p>
+            </div>
+          ) : contacts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <Users className="w-12 h-12 text-gray-800" />
               <p className="text-gray-500 text-sm">No contacts yet</p>
@@ -84,7 +99,12 @@ export default function ContactsPage() {
               {contacts.map((c) => (
                 <ContactCard
                   key={c.id}
-                  contact={c}
+                  contact={{
+                    id: c.id,
+                    displayName: c.displayName,
+                    fingerprint: c.fingerprint,
+                    note: c.note
+                  }}
                   onDelete={handleDelete}
                   onBlock={handleBlock}
                 />

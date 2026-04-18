@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
+import type { Api } from '../shared/api'
 
-contextBridge.exposeInMainWorld('api', {
+const api: Api = {
   // ── Identity ──────────────────────────────────────────────────────────────
   getIdentityState: () =>
     ipcRenderer.invoke('identity:get-state'),
@@ -52,4 +53,6 @@ contextBridge.exposeInMainWorld('api', {
   // ── Emergency Wipe ────────────────────────────────────────────────────────
   executeWipe: (p: { confirmation: 'DESTROY' }) =>
     ipcRenderer.invoke('wipe:execute', p)
-})
+}
+
+contextBridge.exposeInMainWorld('api', api)

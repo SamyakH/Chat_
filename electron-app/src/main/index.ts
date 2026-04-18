@@ -7,6 +7,19 @@ import { registerMessagesIpc } from './ipc/messages.ipc'
 import { registerWipeIpc } from './ipc/wipe.ipc'
 
 const isDev = !app.isPackaged
+let ipcRegistered = false
+
+function registerIpcHandlers(): void {
+  if (ipcRegistered) return
+
+  registerIdentityIpc(ipcMain)
+  registerWorkspaceIpc(ipcMain)
+  registerContactsIpc(ipcMain)
+  registerMessagesIpc(ipcMain)
+  registerWipeIpc(ipcMain)
+
+  ipcRegistered = true
+}
 
 function createWindow(): void {
   const win = new BrowserWindow({
@@ -25,13 +38,6 @@ function createWindow(): void {
     }
   })
 
-  // Register all IPC handlers before loading UI
-  registerIdentityIpc(ipcMain)
-  registerWorkspaceIpc(ipcMain)
-  registerContactsIpc(ipcMain)
-  registerMessagesIpc(ipcMain)
-  registerWipeIpc(ipcMain)
-
   if (isDev) {
     win.loadURL('http://localhost:5173')
     win.webContents.openDevTools({ mode: 'detach' })
@@ -41,6 +47,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  registerIpcHandlers()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

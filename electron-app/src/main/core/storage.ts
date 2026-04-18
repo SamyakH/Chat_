@@ -107,10 +107,12 @@ export function storeContact(contact: {
   edPublicKey: string
   xPublicKey: string
   note?: string
+  createdAt?: number
 }): void {
+  const createdAt = contact.createdAt ?? Date.now()
   getDb()
     .prepare(`
-      INSERT OR REPLACE INTO contacts
+      INSERT INTO contacts
         (id, display_name, fingerprint, ed_public_key, x_public_key, note, created_at)
       VALUES (?,?,?,?,?,?,?)
     `)
@@ -121,7 +123,7 @@ export function storeContact(contact: {
       contact.edPublicKey,
       contact.xPublicKey,
       contact.note ?? '',
-      Date.now()
+      createdAt
     )
 }
 
@@ -153,18 +155,20 @@ export function storeMessage(msg: {
   contactId: string
   direction: 'incoming' | 'outgoing'
   plaintext: string
-  ciphertext?: string
-  nonce?: string
-  signature?: string
+  ciphertext?: string | null
+  nonce?: string | null
+  signature?: string | null
   deliveryStatus?: string
+  createdAt?: number
 }): void {
   const d = getDb()
+  const createdAt = msg.createdAt ?? Date.now()
 
   // Create conversation row if it doesn't exist
   d.prepare(`
     INSERT OR IGNORE INTO conversations (id, contact_id, created_at)
     VALUES (?,?,?)
-  `).run(msg.conversationId, msg.contactId, Date.now())
+  `).run(msg.conversationId, msg.contactId, createdAt)
 
   d.prepare(`
     INSERT INTO messages
@@ -180,14 +184,14 @@ export function storeMessage(msg: {
     msg.nonce || null,
     msg.signature || null,
     msg.deliveryStatus ?? 'sent',
-    Date.now()
+    createdAt
   )
 
   d.prepare(`
     UPDATE conversations
     SET last_activity_at = ?, message_count = message_count + 1
     WHERE id = ?
-  `).run(Date.now(), msg.conversationId)
+  `).run(createdAt, msg.conversationId)
 }
 
 export function loadMessages(conversationId: string): unknown[] {

@@ -3,7 +3,7 @@ import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
 import { initCrypto, generateSigningKeyPair, generateExchangeKeyPair } from './cryptography'
-import { storeIdentityKeys } from './storage'
+import { closeStorage, initStorage, storeIdentityKeys } from './storage'
 
 export interface IdentityProfile {
   displayName: string
@@ -126,13 +126,22 @@ export async function createIdentity(payload: {
     updatedAt: now
   }
 
-  writeIdentity(identity)
-  
-  // Store generated key pairs
-  storeIdentityKeys(signingKeys, exchangeKeys)
-  
-  isUnlocked = true
-  return makeState(identity)
+  try {
+    isUnlocked = true
+    initStorage()
+    storeIdentityKeys(signingKeys, exchangeKeys)
+    writeIdentity(identity)
+    return makeState(identity)
+  } catch (error) {
+    isUnlocked = false
+    try {
+      closeStorage()
+      fs.rmSync(getDataDir(), { recursive: true, force: true })
+    } catch {
+      // Ignore cleanup errors and surface the original failure.
+    }
+    throw error
+  }
 }
 
 export function unlockIdentity(passcode: string): IdentityState {

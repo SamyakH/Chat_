@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { QrCode, Camera, AlertTriangle } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
@@ -9,10 +9,17 @@ export default function ScanContactPage() {
   const [status, setStatus] = useState('Point your camera at a valid contact QR code')
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const handledScanRef = useRef(false)
 
   useEffect(() => {
     const elementId = 'qr-reader'
     const html5QrCode = new Html5Qrcode(elementId)
+    let scannerRunning = false
+    const stopScanner = async (): Promise<void> => {
+      if (!scannerRunning) return
+      await html5QrCode.stop()
+      scannerRunning = false
+    }
 
     const config = {
       fps: 10,
@@ -24,26 +31,40 @@ export default function ScanContactPage() {
       { facingMode: 'environment' },
       config,
       (decodedText: string) => {
+        if (handledScanRef.current) return
+        handledScanRef.current = true
+        setError('')
         setStatus('QR code detected — importing contact...')
         void window.api.addContactFromQr({ qrData: decodedText })
           .then(() => {
             setSuccess(true)
             setStatus('Contact added successfully!')
+            void stopScanner().catch(() => {})
+          })
+          .then(() => {
             setTimeout(() => navigate('/contacts'), 1200)
           })
           .catch((err: unknown) => {
+            handledScanRef.current = false
             setError(err instanceof Error ? err.message : 'Failed to import contact from QR')
+            setStatus('Point your camera at a valid contact QR code')
           })
       },
       () => {
         // ignore occasional scan failures
       }
-    ).catch((err) => {
-      setError('Unable to start camera scanner: ' + (err instanceof Error ? err.message : String(err)))
-    })
+    )
+      .then(() => {
+        scannerRunning = true
+      })
+      .catch((err) => {
+        setError('Unable to start camera scanner: ' + (err instanceof Error ? err.message : String(err)))
+      })
 
     return () => {
-      html5QrCode.stop().catch(() => {})
+      if (scannerRunning) {
+        void stopScanner().catch(() => {})
+      }
     }
   }, [navigate])
 

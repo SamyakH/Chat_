@@ -3,6 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { UserPlus, CheckCircle, QrCode } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 
+interface ParsedContactPayload {
+  displayName?: string
+  edPublicKey: string
+  xPublicKey: string
+}
+
 export default function AddContactPage() {
   const navigate = useNavigate()
   const [displayName, setName] = useState('')
@@ -12,30 +18,46 @@ export default function AddContactPage() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  function parseContactPayload(raw: string): ParsedContactPayload {
+    let parsed: unknown
+
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      throw new Error('Paste the full shared payload JSON from the Share page.')
+    }
+
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      typeof (parsed as ParsedContactPayload).edPublicKey !== 'string' ||
+      typeof (parsed as ParsedContactPayload).xPublicKey !== 'string'
+    ) {
+      throw new Error('Shared payload must include both signing and exchange public keys.')
+    }
+
+    return parsed as ParsedContactPayload
+  }
+
   async function handleAdd() {
     setError('')
     if (!displayName.trim()) { setError('Display name is required'); return }
     if (!contactPayload.trim()) { setError('Contact payload is required'); return }
 
-    let edPublicKey = contactPayload.trim()
-    let xPublicKey = contactPayload.trim()
-
+    let parsedPayload: ParsedContactPayload
     try {
-      const parsed = JSON.parse(contactPayload)
-      if (parsed.edPublicKey && parsed.xPublicKey) {
-        edPublicKey = parsed.edPublicKey
-        xPublicKey = parsed.xPublicKey
-      }
-    } catch {
-      // Fallback to raw string as public key placeholder
+      parsedPayload = parseContactPayload(contactPayload)
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Invalid contact payload')
+      return
     }
 
     setLoading(true)
     try {
       await window.api.addContact({
         displayName: displayName.trim(),
-        edPublicKey: edPublicKey.trim(),
-        xPublicKey: xPublicKey.trim(),
+        edPublicKey: parsedPayload.edPublicKey.trim(),
+        xPublicKey: parsedPayload.xPublicKey.trim(),
         note: note.trim()
       })
       setSuccess(true)
@@ -96,12 +118,12 @@ export default function AddContactPage() {
                   <textarea
                     value={contactPayload}
                     onChange={(e) => setPayload(e.target.value)}
-                    placeholder='Paste shared QR payload or public key string'
+                    placeholder='Paste the shared payload JSON from the Share page'
                     rows={4}
                     className="w-full bg-gray-900 border border-gray-800 focus:border-teal-500 rounded-2xl px-4 py-3 text-white placeholder-gray-600 outline-none transition-colors font-mono text-sm"
                   />
                   <p className="text-xs text-gray-600 mt-1">
-                    Paste the secure contact payload from the Share page, or enter a raw public key string.
+                    Paste the complete shared payload from the Share page. Raw public key strings are not accepted.
                   </p>
                 </div>
 

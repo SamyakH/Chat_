@@ -2,13 +2,15 @@ import type { IpcMain } from 'electron'
 import { z } from 'zod'
 import {
   getIdentityState,
+  getIdentityProfile,
+  requireUnlocked,
   createIdentity,
   unlockIdentity,
   lockIdentity,
   updateIdentityProfile,
   regenerateIdentityPublicId
 } from '../core/identity'
-import { getIdentityKeys } from '../core/storage'
+import { getIdentityKeys, initStorage } from '../core/storage'
 
 const CreateIdentitySchema = z.object({
   displayName: z.string().min(2).max(36),
@@ -28,14 +30,15 @@ const UpdateProfileSchema = z.object({
 export function registerIdentityIpc(ipcMain: IpcMain): void {
   ipcMain.handle('identity:get-state', () => getIdentityState())
   ipcMain.handle('identity:get-qr-code', () => {
-    const state = getIdentityState()
-    if (!state.hasIdentity || !state.profile) throw new Error('Identity not created')
+    requireUnlocked()
+    initStorage()
+    const profile = getIdentityProfile()
     const keys = getIdentityKeys()
     if (!keys) throw new Error('Identity keys are missing')
 
     const payload = {
-      publicId: state.profile.publicId,
-      displayName: state.profile.displayName,
+      publicId: profile.publicId,
+      displayName: profile.displayName,
       edPublicKey: keys.signing.publicKey,
       xPublicKey: keys.exchange.publicKey
     }

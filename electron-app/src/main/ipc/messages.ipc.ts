@@ -2,8 +2,9 @@ import type { IpcMain } from 'electron'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { requireUnlocked } from '../core/identity'
-import { storeMessage, loadMessages, softDeleteMessage, updateDeliveryStatus, getIdentityKeys, getContactById } from '../core/storage'
+import { storeMessage, loadMessages, softDeleteMessage, updateDeliveryStatus, getIdentityKeys, getContactById, initStorage } from '../core/storage'
 import { initCrypto, encryptMessage, deriveSessionKey } from '../core/cryptography'
+import type { Message } from '../../shared/api'
 
 const SendSchema = z.object({
   contactId: z.string().uuid(),
@@ -37,12 +38,14 @@ function normalizeMessage(record: any) {
 export function registerMessagesIpc(ipcMain: IpcMain): void {
   ipcMain.handle('messages:load', (_, conversationId: unknown) => {
     requireUnlocked()
+    initStorage()
     if (typeof conversationId !== 'string') throw new Error('Invalid conversationId')
     return loadMessages(conversationId).map(normalizeMessage)
   })
 
   ipcMain.handle('messages:send', async (_, payload: unknown) => {
     requireUnlocked()
+    initStorage()
     const { contactId, conversationId, text } = SendSchema.parse(payload)
 
     await initCrypto()
@@ -52,26 +55,37 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
     const contact = getContactById(contactId) as any
     if (!contact) throw new Error('Contact not found')
 
-    let sessionKey: Uint8Array = Buffer.from(contactId.slice(0, 32).padEnd(32, '0'))
-    if (typeof contact.x_public_key === 'string') {
+    if (typeof contact.x_public_key !== 'string' || !contact.x_public_key.trim()) {
+      throw new Error('Contact is missing a valid exchange key.')
+    }
+
+    let sessionKey: Uint8Array
+    try {
       const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
       const theirPublic = Buffer.from(contact.x_public_key, 'base64')
       sessionKey = await deriveSessionKey(myPrivate, theirPublic)
+    } catch {
+      throw new Error('Unable to derive a secure session for this contact.')
     }
 
     const signingPrivateKeyBuffer = Buffer.from(keys.signing.privateKey, 'base64')
-    const encrypted = await encryptMessage(text, sessionKey as any, signingPrivateKeyBuffer as any)
+    const encrypted = await encryptMessage(text, sessionKey, signingPrivateKeyBuffer)
 
-    const msg = {
+    const createdAt = Date.now()
+    const msg: Message = {
       id: randomUUID(),
       conversationId,
       contactId,
-      direction: 'outgoing' as const,
+      direction: 'outgoing',
       plaintext: text,
       ciphertext: encrypted.ciphertext,
       nonce: encrypted.nonce,
       signature: encrypted.signature,
-      deliveryStatus: 'sent'
+      deliveryStatus: 'sent',
+      messageType: 'TEXT',
+      isEdited: false,
+      isDeleted: false,
+      createdAt
     }
     storeMessage(msg)
     return msg
@@ -79,6 +93,7 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
 
   ipcMain.handle('messages:delete', (_, messageId: unknown) => {
     requireUnlocked()
+    initStorage()
     if (typeof messageId !== 'string') throw new Error('Invalid messageId')
     softDeleteMessage(messageId)
     return { ok: true }
@@ -86,6 +101,7 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
 
   ipcMain.handle('messages:update-status', (_, payload: unknown) => {
     requireUnlocked()
+    initStorage()
     const { messageId, status } = StatusSchema.parse(payload)
     updateDeliveryStatus(messageId, status)
     return { ok: true }

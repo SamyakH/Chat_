@@ -13,8 +13,13 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
     try {
       const state = await window.api.unlockIdentity({ passcode })
       if (state.isUnlocked) {
-        await window.api.initWorkspace()
-        onUnlocked()
+        try {
+          await window.api.initWorkspace()
+          onUnlocked()
+        } catch (err: unknown) {
+          await window.api.lockIdentity()
+          throw err
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Incorrect passcode')

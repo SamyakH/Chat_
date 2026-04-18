@@ -4,31 +4,7 @@ import { Send, MessageSquare, UserPlus } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import MessageBubble from '../components/MessageBubble'
 import EncryptionBadge from '../components/EncryptionBadge'
-
-interface ApiContact { id: string; display_name: string; fingerprint: string }
-interface Contact { id: string; displayName: string; fingerprint: string }
-interface ApiMessage { id: string; conversation_id: string; contact_id: string; direction: 'incoming' | 'outgoing'; plaintext: string; delivery_status: 'sent' | 'delivered' | 'failed'; message_type: string; is_edited: number; is_deleted: number; created_at: number }
-interface Message  { id: string; contactId: string; conversationId: string; direction: 'incoming'|'outgoing'; plaintext: string; deliveryStatus: string; createdAt: number }
-
-function mapContact(raw: ApiContact): Contact {
-  return {
-    id: raw.id,
-    displayName: raw.display_name,
-    fingerprint: raw.fingerprint,
-  }
-}
-
-function mapMessage(raw: ApiMessage): Message {
-  return {
-    id: raw.id,
-    contactId: raw.contact_id,
-    conversationId: raw.conversation_id,
-    direction: raw.direction,
-    plaintext: raw.plaintext,
-    deliveryStatus: raw.delivery_status,
-    createdAt: raw.created_at,
-  }
-}
+import type { Contact, Message } from '../../../shared/api'
 
 export default function ChatPage() {
   const { contactId }   = useParams<{ contactId: string }>()
@@ -36,18 +12,30 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText]         = useState('')
   const [sending, setSending]   = useState(false)
+  const [error, setError] = useState('')
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const selected = contacts.find((c) => c.id === contactId) ?? null
   const convId   = selected ? `conv-${selected.id}` : null
 
   useEffect(() => {
-    window.api.listContacts().then((c) => setContacts((c as ApiContact[]).map(mapContact)))
+    window.api
+      .listContacts()
+      .then((c) => setContacts(c))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load contacts')
+      })
   }, [])
 
   useEffect(() => {
     if (!convId) { setMessages([]); return }
-    window.api.loadMessages(convId).then((m) => setMessages((m as ApiMessage[]).map(mapMessage)))
+    setError('')
+    window.api
+      .loadMessages(convId)
+      .then((m) => setMessages(m))
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'Failed to load messages')
+      })
   }, [convId])
 
   useEffect(() => {
@@ -57,10 +45,13 @@ export default function ChatPage() {
   async function handleSend() {
     if (!text.trim() || !selected || !convId || sending) return
     setSending(true)
+    setError('')
     try {
       const msg = await window.api.sendMessage({ contactId: selected.id, conversationId: convId, text: text.trim() })
-      setMessages((prev) => [...prev, mapMessage(msg as ApiMessage)])
+      setMessages((prev) => [...prev, msg])
       setText('')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to send message')
     } finally {
       setSending(false)
     }
@@ -127,6 +118,11 @@ export default function ChatPage() {
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+              {error && (
+                <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+                  {error}
+                </div>
+              )}
               {messages.map((m) => <MessageBubble key={m.id} message={m} />)}
               <div ref={bottomRef} />
             </div>
