@@ -32,3 +32,9 @@ $ npm run build:mac
 # For Linux
 $ npm run build:linux
 ```
+# Instance 1 (User A): Run as normal
+
+$ npm start
+
+# Windows
+npm start -- --user-data-dir=C:\temp\user2

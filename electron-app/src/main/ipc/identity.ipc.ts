@@ -8,7 +8,8 @@ import {
   unlockIdentity,
   lockIdentity,
   updateIdentityProfile,
-  regenerateIdentityPublicId
+  regenerateIdentityPublicId,
+  burnAccount
 } from '../core/identity'
 import { getIdentityKeys, initStorage } from '../core/storage'
 
@@ -63,4 +64,9 @@ export function registerIdentityIpc(ipcMain: IpcMain): void {
   })
 
   ipcMain.handle('identity:regenerate-id', () => regenerateIdentityPublicId())
+
+  ipcMain.handle('identity:burn-account', () => {
+    burnAccount()
+    return true
+  })
 }

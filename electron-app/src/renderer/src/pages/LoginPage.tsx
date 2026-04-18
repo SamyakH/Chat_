@@ -10,7 +10,7 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
 
   useEffect(() => {
     // Load identity state to show user name
-    window.api.getIdentityState().then(state => {
+    window.api.getIdentityState().then((state) => {
       if (state.profile) {
         setProfileName(state.profile.displayName)
       }
@@ -48,9 +48,7 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
             <ShieldCheck className="w-10 h-10 text-teal-400" />
           </div>
           <h1 className="text-2xl font-semibold text-white tracking-tight">Anon Chat</h1>
-          {profileName && (
-            <p className="text-teal-400 text-sm mt-2 font-medium">{profileName}</p>
-          )}
+          {profileName && <p className="text-teal-400 text-sm mt-2 font-medium">{profileName}</p>}
           <p className="text-gray-500 text-sm mt-1">Enter your passcode to unlock</p>
         </div>
 
@@ -89,7 +87,9 @@ export default function LoginPage({ onUnlocked }: { onUnlocked: () => void }) {
 
           {confirmBurn ? (
             <div className="mt-6 p-4 bg-red-950/30 border border-red-900/40 rounded-xl">
-              <p className="text-red-400 text-sm mb-3">⚠️ This will PERMANENTLY DELETE ALL data. This cannot be undone.</p>
+              <p className="text-red-400 text-sm mb-3">
+                ⚠️ This will PERMANENTLY DELETE ALL data. This cannot be undone.
+              </p>
               <div className="flex gap-3">
                 <button
                   type="button"

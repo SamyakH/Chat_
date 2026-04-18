@@ -12,6 +12,7 @@ const api: Api = {
     ipcRenderer.invoke('identity:update-profile', p),
   regenerateIdentityId: () => ipcRenderer.invoke('identity:regenerate-id'),
   getQrCode: () => ipcRenderer.invoke('identity:get-qr-code'),
+  burnAccount: () => ipcRenderer.invoke('identity:burn-account'),
 
   // ── Workspace ─────────────────────────────────────────────────────────────
   initWorkspace: () => ipcRenderer.invoke('workspace:init'),

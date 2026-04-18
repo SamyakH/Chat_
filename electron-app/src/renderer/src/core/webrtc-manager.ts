@@ -81,9 +81,13 @@ export class WebRTCManager extends EventEmitter {
     dc.onclose = () => this.emit('datachannel-close')
   }
 
-  async startCall(contactId: string, enableVideo: boolean = true, enableAudio: boolean = true): Promise<void> {
+  async startCall(
+    contactId: string,
+    enableVideo: boolean = true,
+    enableAudio: boolean = true
+  ): Promise<void> {
     this.peerConnection = this.createPeerConnection()
-    
+
     // Setup data channel
     this.dataChannel = this.peerConnection.createDataChannel('messages')
     this.setupDataChannel(this.dataChannel)
@@ -95,7 +99,7 @@ export class WebRTCManager extends EventEmitter {
     })
 
     // Add tracks
-    this.localStream.getTracks().forEach(track => {
+    this.localStream.getTracks().forEach((track) => {
       this.peerConnection!.addTrack(track, this.localStream!)
     })
 
@@ -112,7 +116,7 @@ export class WebRTCManager extends EventEmitter {
     // Create offer
     const offer = await this.peerConnection.createOffer()
     await this.peerConnection.setLocalDescription(offer)
-    
+
     window.api.sendCallOffer(contactId, offer)
     this.emit('local-stream', this.localStream)
     this.emit('call-started', this.callState)
@@ -126,7 +130,7 @@ export class WebRTCManager extends EventEmitter {
       audio: true
     })
 
-    this.localStream.getTracks().forEach(track => {
+    this.localStream.getTracks().forEach((track) => {
       this.peerConnection!.addTrack(track, this.localStream!)
     })
 
@@ -190,7 +194,7 @@ export class WebRTCManager extends EventEmitter {
     }
 
     if (this.localStream) {
-      this.localStream.getTracks().forEach(track => track.stop())
+      this.localStream.getTracks().forEach((track) => track.stop())
       this.localStream = null
     }
 

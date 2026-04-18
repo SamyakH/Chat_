@@ -80,7 +80,7 @@ export function getIdentityState(): IdentityState {
   return makeState(readIdentity())
 }
 
-let unlockedKeyMaterial: Uint8Array | null = null
+const unlockedKeyMaterial: Uint8Array | null = null
 
 export function requireUnlocked(): void {
   if (!isUnlocked) throw new Error('Unlock the app to continue.')
@@ -166,7 +166,7 @@ export function unlockIdentity(passcode: string): IdentityState {
   }
 
   isUnlocked = true
-  
+
   // Initialize storage after successful unlock
   try {
     initStorage()
@@ -174,7 +174,7 @@ export function unlockIdentity(passcode: string): IdentityState {
     isUnlocked = false
     throw new Error('Failed to initialize secure storage')
   }
-  
+
   return makeState(identity)
 }
 

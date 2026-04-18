@@ -188,16 +188,16 @@ export function storeMessage(msg: {
     VALUES (?,?,?,?,?,?,?,?,?,?)
   `
   ).run(
-      msg.id,
-      msg.conversationId,
-      msg.contactId,
-      msg.direction,
-      msg.plaintext,
-      msg.ciphertext || null,
-      msg.nonce || null,
-      msg.signature || null,
-      msg.deliveryStatus ?? 'sent',
-      createdAt
+    msg.id,
+    msg.conversationId,
+    msg.contactId,
+    msg.direction,
+    msg.plaintext,
+    msg.ciphertext || null,
+    msg.nonce || null,
+    msg.signature || null,
+    msg.deliveryStatus ?? 'sent',
+    createdAt
   )
 
   d.prepare(

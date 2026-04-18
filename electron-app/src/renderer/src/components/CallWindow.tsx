@@ -71,19 +71,31 @@ export default function CallWindow({ onClose }: CallWindowProps) {
         <button
           onClick={toggleAudio}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-            callState.hasLocalAudio ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-500'
+            callState.hasLocalAudio
+              ? 'bg-gray-700 hover:bg-gray-600'
+              : 'bg-red-600 hover:bg-red-500'
           }`}
         >
-          {callState.hasLocalAudio ? <Mic className="w-5 h-5 text-white" /> : <MicOff className="w-5 h-5 text-white" />}
+          {callState.hasLocalAudio ? (
+            <Mic className="w-5 h-5 text-white" />
+          ) : (
+            <MicOff className="w-5 h-5 text-white" />
+          )}
         </button>
 
         <button
           onClick={toggleVideo}
           className={`w-12 h-12 rounded-full flex items-center justify-center transition-colors ${
-            callState.hasLocalVideo ? 'bg-gray-700 hover:bg-gray-600' : 'bg-red-600 hover:bg-red-500'
+            callState.hasLocalVideo
+              ? 'bg-gray-700 hover:bg-gray-600'
+              : 'bg-red-600 hover:bg-red-500'
           }`}
         >
-          {callState.hasLocalVideo ? <Video className="w-5 h-5 text-white" /> : <VideoOff className="w-5 h-5 text-white" />}
+          {callState.hasLocalVideo ? (
+            <Video className="w-5 h-5 text-white" />
+          ) : (
+            <VideoOff className="w-5 h-5 text-white" />
+          )}
         </button>
 
         <button
