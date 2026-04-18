@@ -5,8 +5,30 @@ import AppLayout from '../components/AppLayout'
 import MessageBubble from '../components/MessageBubble'
 import EncryptionBadge from '../components/EncryptionBadge'
 
-interface Contact { id: string; display_name: string; fingerprint: string }
-interface Message  { id: string; contact_id: string; direction: 'incoming'|'outgoing'; plaintext: string; delivery_status: string; created_at: number }
+interface ApiContact { id: string; display_name: string; fingerprint: string }
+interface Contact { id: string; displayName: string; fingerprint: string }
+interface ApiMessage { id: string; conversation_id: string; contact_id: string; direction: 'incoming' | 'outgoing'; plaintext: string; delivery_status: 'sent' | 'delivered' | 'failed'; message_type: string; is_edited: number; is_deleted: number; created_at: number }
+interface Message  { id: string; contactId: string; conversationId: string; direction: 'incoming'|'outgoing'; plaintext: string; deliveryStatus: string; createdAt: number }
+
+function mapContact(raw: ApiContact): Contact {
+  return {
+    id: raw.id,
+    displayName: raw.display_name,
+    fingerprint: raw.fingerprint,
+  }
+}
+
+function mapMessage(raw: ApiMessage): Message {
+  return {
+    id: raw.id,
+    contactId: raw.contact_id,
+    conversationId: raw.conversation_id,
+    direction: raw.direction,
+    plaintext: raw.plaintext,
+    deliveryStatus: raw.delivery_status,
+    createdAt: raw.created_at,
+  }
+}
 
 export default function ChatPage() {
   const { contactId }   = useParams<{ contactId: string }>()
@@ -20,12 +42,12 @@ export default function ChatPage() {
   const convId   = selected ? `conv-${selected.id}` : null
 
   useEffect(() => {
-    window.api.listContacts().then((c) => setContacts(c as Contact[]))
+    window.api.listContacts().then((c) => setContacts((c as ApiContact[]).map(mapContact)))
   }, [])
 
   useEffect(() => {
     if (!convId) { setMessages([]); return }
-    window.api.loadMessages(convId).then((m) => setMessages(m as Message[]))
+    window.api.loadMessages(convId).then((m) => setMessages((m as ApiMessage[]).map(mapMessage)))
   }, [convId])
 
   useEffect(() => {
@@ -37,7 +59,7 @@ export default function ChatPage() {
     setSending(true)
     try {
       const msg = await window.api.sendMessage({ contactId: selected.id, conversationId: convId, text: text.trim() })
-      setMessages((prev) => [...prev, msg as Message])
+      setMessages((prev) => [...prev, mapMessage(msg as ApiMessage)])
       setText('')
     } finally {
       setSending(false)
@@ -73,11 +95,11 @@ export default function ChatPage() {
                 >
                   <div className="w-8 h-8 rounded-full bg-teal-900/60 flex items-center justify-center flex-shrink-0">
                     <span className="text-xs font-bold text-teal-300">
-                      {c.display_name.charAt(0).toUpperCase()}
+                      {c.displayName.charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-white truncate">{c.display_name}</p>
+                    <p className="text-sm font-medium text-white truncate">{c.displayName}</p>
                     <p className="text-[10px] text-gray-600 font-mono truncate">{c.fingerprint.slice(0,16)}…</p>
                   </div>
                 </Link>
@@ -92,10 +114,10 @@ export default function ChatPage() {
             {/* Header */}
             <div className="px-5 py-3 border-b border-gray-800 flex items-center gap-3 bg-gray-950">
               <div className="w-8 h-8 rounded-full bg-teal-900/60 flex items-center justify-center">
-                <span className="text-sm font-bold text-teal-300">{selected.display_name.charAt(0).toUpperCase()}</span>
+                <span className="text-sm font-bold text-teal-300">{selected.displayName.charAt(0).toUpperCase()}</span>
               </div>
               <div>
-                <p className="font-semibold text-white text-sm">{selected.display_name}</p>
+                <p className="font-semibold text-white text-sm">{selected.displayName}</p>
                 <p className="text-[10px] text-gray-500 font-mono">{selected.fingerprint.slice(0,20)}…</p>
               </div>
               <div className="ml-auto">

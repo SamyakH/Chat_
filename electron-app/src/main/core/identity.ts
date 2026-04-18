@@ -2,6 +2,8 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
+import { initCrypto, generateSigningKeyPair, generateExchangeKeyPair } from './cryptography'
+import { storeIdentityKeys } from './storage'
 
 export interface IdentityProfile {
   displayName: string
@@ -89,11 +91,11 @@ export function getIdentityProfile(): IdentityProfile {
   return identity.profile
 }
 
-export function createIdentity(payload: {
+export async function createIdentity(payload: {
   displayName: string
   statusLine: string
   passcode: string
-}): IdentityState {
+}): Promise<IdentityState> {
   if (readIdentity()) throw new Error('An identity already exists on this device.')
 
   const displayName = normalizeName(payload.displayName, 36)
@@ -102,6 +104,11 @@ export function createIdentity(payload: {
 
   if (displayName.length < 2) throw new Error('Display name must be at least 2 characters.')
   if (passcode.length < 4) throw new Error('Passcode must be at least 4 characters.')
+
+  // Initialize crypto and generate key pairs
+  await initCrypto()
+  const signingKeys = await generateSigningKeyPair()
+  const exchangeKeys = await generateExchangeKeyPair()
 
   const now = Date.now()
   const passcodeSalt = randomBytes(16).toString('base64')
@@ -120,6 +127,10 @@ export function createIdentity(payload: {
   }
 
   writeIdentity(identity)
+  
+  // Store generated key pairs
+  storeIdentityKeys(signingKeys, exchangeKeys)
+  
   isUnlocked = true
   return makeState(identity)
 }

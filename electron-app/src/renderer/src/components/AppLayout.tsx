@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom'
-import { MessageSquare, Users, UserPlus, Share2, Settings, ShieldCheck } from 'lucide-react'
+import { MessageSquare, Users, UserPlus, Share2, Settings, ShieldCheck, QrCode } from 'lucide-react'
 
 interface Props {
   children: React.ReactNode
@@ -9,6 +9,7 @@ const NAV = [
   { to: '/chat',        Icon: MessageSquare, label: 'Chat' },
   { to: '/contacts',    Icon: Users,         label: 'Contacts' },
   { to: '/add-contact', Icon: UserPlus,      label: 'Add Contact' },
+  { to: '/scan-contact',Icon: QrCode,        label: 'Scan QR' },
   { to: '/share',       Icon: Share2,        label: 'Share Identity' },
   { to: '/settings',    Icon: Settings,      label: 'Settings' },
 ]

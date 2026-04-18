@@ -52,6 +52,8 @@ declare global {
       addContact(p: { displayName: string; edPublicKey: string; xPublicKey: string; note?: string }): Promise<Contact>
       deleteContact(id: string): Promise<{ ok: boolean }>
       blockContact(id: string): Promise<{ ok: boolean }>
+      addContactFromQr(p: { qrData: string }): Promise<Contact>
+      getQrCode(): Promise<{ qrData: string; displayName: string; publicId: string }>
 
       loadMessages(conversationId: string): Promise<Message[]>
       sendMessage(p: { contactId: string; conversationId: string; text: string }): Promise<Message>

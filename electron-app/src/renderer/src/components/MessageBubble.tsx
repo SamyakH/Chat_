@@ -5,8 +5,8 @@ interface Props {
     id: string
     direction: 'incoming' | 'outgoing'
     plaintext: string
-    delivery_status: string
-    created_at: number
+    deliveryStatus: string
+    createdAt: number
   }
 }
 
@@ -33,8 +33,8 @@ export default function MessageBubble({ message }: Props) {
       >
         <p className="text-sm leading-relaxed break-words">{message.plaintext}</p>
         <div className={`flex items-center gap-1 mt-1 ${out ? 'justify-end' : 'justify-start'}`}>
-          <span className="text-[10px] text-white/40">{formatTime(message.created_at)}</span>
-          {out && <StatusIcon status={message.delivery_status} />}
+          <span className="text-[10px] text-white/40">{formatTime(message.createdAt)}</span>
+          {out && <StatusIcon status={message.deliveryStatus} />}
         </div>
       </div>
     </div>

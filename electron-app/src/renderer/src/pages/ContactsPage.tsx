@@ -1,16 +1,28 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { UserPlus, Users } from 'lucide-react'
+import { UserPlus, Users, QrCode } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import ContactCard from '../components/ContactCard'
 
-interface Contact { id: string; display_name: string; fingerprint: string; note: string }
+interface ApiContact { id: string; display_name: string; fingerprint: string; note: string }
+interface Contact { id: string; displayName: string; fingerprint: string; note: string }
+
+function mapContact(raw: ApiContact): Contact {
+  return {
+    id: raw.id,
+    displayName: raw.display_name,
+    fingerprint: raw.fingerprint,
+    note: raw.note,
+  }
+}
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [loading, setLoading] = useState(true)
 
   function load() {
-    window.api.listContacts().then((c) => setContacts(c as Contact[]))
+    setLoading(true)
+    window.api.listContacts().then((c) => setContacts((c as ApiContact[]).map(mapContact))).finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
@@ -52,12 +64,20 @@ export default function ContactsPage() {
             <div className="flex flex-col items-center justify-center h-full gap-4">
               <Users className="w-12 h-12 text-gray-800" />
               <p className="text-gray-500 text-sm">No contacts yet</p>
-              <Link
-                to="/add-contact"
-                className="text-teal-500 hover:text-teal-400 text-sm flex items-center gap-1"
-              >
-                <UserPlus className="w-4 h-4" /> Add your first contact
-              </Link>
+              <div className="flex gap-3">
+                <Link
+                  to="/add-contact"
+                  className="text-teal-500 hover:text-teal-400 text-sm flex items-center gap-1"
+                >
+                  <UserPlus className="w-4 h-4" /> Add contact
+                </Link>
+                <Link
+                  to="/scan-contact"
+                  className="text-teal-500 hover:text-teal-400 text-sm flex items-center gap-1"
+                >
+                  <QrCode className="w-4 h-4" /> Scan QR
+                </Link>
+              </div>
             </div>
           ) : (
             <div className="space-y-2 max-w-2xl">

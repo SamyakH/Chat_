@@ -54,12 +54,22 @@ export function initStorage(): void {
       contact_id      TEXT NOT NULL,
       direction       TEXT NOT NULL CHECK(direction IN ('incoming','outgoing')),
       plaintext       TEXT NOT NULL DEFAULT '',
+      ciphertext      TEXT,
+      nonce           TEXT,
+      signature       TEXT,
       delivery_status TEXT NOT NULL DEFAULT 'sent',
       message_type    TEXT NOT NULL DEFAULT 'TEXT',
       is_edited       INTEGER DEFAULT 0,
       is_deleted      INTEGER DEFAULT 0,
       created_at      INTEGER NOT NULL,
       FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS identity_keys (
+      key_type        TEXT PRIMARY KEY,
+      public_key      TEXT NOT NULL,
+      private_key     TEXT NOT NULL,
+      created_at      INTEGER NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS session_nonces (
@@ -121,6 +131,12 @@ export function loadContacts(): unknown[] {
     .all()
 }
 
+export function getContactById(id: string): unknown | null {
+  return getDb()
+    .prepare('SELECT * FROM contacts WHERE id = ? AND is_blocked = 0')
+    .get(id) as unknown || null
+}
+
 export function blockContact(id: string): void {
   getDb().prepare('UPDATE contacts SET is_blocked = 1 WHERE id = ?').run(id)
 }
@@ -137,6 +153,9 @@ export function storeMessage(msg: {
   contactId: string
   direction: 'incoming' | 'outgoing'
   plaintext: string
+  ciphertext?: string
+  nonce?: string
+  signature?: string
   deliveryStatus?: string
 }): void {
   const d = getDb()
@@ -149,14 +168,17 @@ export function storeMessage(msg: {
 
   d.prepare(`
     INSERT INTO messages
-      (id, conversation_id, contact_id, direction, plaintext, delivery_status, created_at)
-    VALUES (?,?,?,?,?,?,?)
+      (id, conversation_id, contact_id, direction, plaintext, ciphertext, nonce, signature, delivery_status, created_at)
+    VALUES (?,?,?,?,?,?,?,?,?,?)
   `).run(
     msg.id,
     msg.conversationId,
     msg.contactId,
     msg.direction,
     msg.plaintext,
+    msg.ciphertext || null,
+    msg.nonce || null,
+    msg.signature || null,
     msg.deliveryStatus ?? 'sent',
     Date.now()
   )
@@ -210,4 +232,38 @@ export function trackNonce(nonceValue: string): boolean {
   `).run(randomUUID(), nonceValue, Date.now(), Date.now() + 86_400_000)
 
   return true
+}
+
+// ── Identity Key Pairs ────────────────────────────────────────────────────────
+
+export function storeIdentityKeys(signingKeys: {
+  publicKey: string
+  privateKey: string
+}, exchangeKeys: {
+  publicKey: string
+  privateKey: string
+}): void {
+  const d = getDb()
+  d.prepare(`
+    INSERT OR REPLACE INTO identity_keys (key_type, public_key, private_key, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run('signing', signingKeys.publicKey, signingKeys.privateKey, Date.now())
+  
+  d.prepare(`
+    INSERT OR REPLACE INTO identity_keys (key_type, public_key, private_key, created_at)
+    VALUES (?, ?, ?, ?)
+  `).run('exchange', exchangeKeys.publicKey, exchangeKeys.privateKey, Date.now())
+}
+
+export function getIdentityKeys(): { signing: { publicKey: string; privateKey: string }; exchange: { publicKey: string; privateKey: string } } | null {
+  const d = getDb()
+  const signing = d.prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?').get('signing') as any
+  const exchange = d.prepare('SELECT public_key, private_key FROM identity_keys WHERE key_type = ?').get('exchange') as any
+  
+  if (!signing || !exchange) return null
+  
+  return {
+    signing: { publicKey: signing.public_key, privateKey: signing.private_key },
+    exchange: { publicKey: exchange.public_key, privateKey: exchange.private_key }
+  }
 }

@@ -2,7 +2,7 @@ import { Trash2, ShieldOff } from 'lucide-react'
 
 interface Contact {
   id: string
-  display_name: string
+  displayName: string
   fingerprint: string
   note: string
 }
@@ -18,12 +18,12 @@ export default function ContactCard({ contact, onDelete, onBlock }: Props) {
     <div className="flex items-center gap-3 px-4 py-3 bg-gray-900 rounded-xl border border-gray-800 hover:border-gray-700 transition-colors">
       <div className="w-10 h-10 rounded-full bg-teal-800/60 flex items-center justify-center flex-shrink-0">
         <span className="text-sm font-semibold text-teal-300">
-          {contact.display_name.charAt(0).toUpperCase()}
+          {contact.displayName.charAt(0).toUpperCase()}
         </span>
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{contact.display_name}</p>
+        <p className="text-sm font-medium text-white truncate">{contact.displayName}</p>
         <p className="text-xs text-gray-500 font-mono truncate">
           {contact.fingerprint.slice(0, 24)}...
         </p>

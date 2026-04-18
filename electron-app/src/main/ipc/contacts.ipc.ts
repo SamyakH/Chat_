@@ -12,10 +12,28 @@ const AddContactSchema = z.object({
   note: z.string().max(200).optional().default('')
 })
 
+const AddFromQrSchema = z.object({
+  qrData: z.string().min(1)
+})
+
+function normalizeContact(record: any) {
+  return {
+    id: record.id,
+    displayName: record.display_name,
+    fingerprint: record.fingerprint,
+    edPublicKey: record.ed_public_key,
+    xPublicKey: record.x_public_key,
+    note: record.note,
+    isBlocked: Boolean(record.is_blocked),
+    createdAt: record.created_at,
+    lastMessageAt: record.last_message_at
+  }
+}
+
 export function registerContactsIpc(ipcMain: IpcMain): void {
   ipcMain.handle('contacts:list', () => {
     requireUnlocked()
-    return loadContacts()
+    return loadContacts().map(normalizeContact)
   })
 
   ipcMain.handle('contacts:add', (_, payload: unknown) => {
@@ -46,5 +64,32 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     if (typeof id !== 'string') throw new Error('Invalid contact id')
     blockContact(id)
     return { ok: true }
+  })
+
+  ipcMain.handle('contacts:add-from-qr', (_, payload: unknown) => {
+    requireUnlocked()
+    const { qrData } = AddFromQrSchema.parse(payload)
+    let parsed: { publicId?: string; displayName?: string; edPublicKey?: string; xPublicKey?: string }
+    try {
+      parsed = JSON.parse(qrData)
+    } catch {
+      throw new Error('QR code payload is malformed')
+    }
+
+    if (!parsed.publicId || !parsed.displayName || !parsed.edPublicKey || !parsed.xPublicKey) {
+      throw new Error('QR code is missing required contact fields')
+    }
+
+    const fingerprint = computeFingerprint(parsed.edPublicKey.trim(), parsed.xPublicKey.trim())
+    const contact = {
+      id: randomUUID(),
+      displayName: parsed.displayName.trim(),
+      fingerprint,
+      edPublicKey: parsed.edPublicKey.trim(),
+      xPublicKey: parsed.xPublicKey.trim(),
+      note: `Imported from ${parsed.publicId}`
+    }
+    storeContact(contact)
+    return { ...contact }
   })
 }

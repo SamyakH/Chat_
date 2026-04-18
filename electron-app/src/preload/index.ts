@@ -14,6 +14,8 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('identity:update-profile', p),
   regenerateIdentityId: () =>
     ipcRenderer.invoke('identity:regenerate-id'),
+  getQrCode: () =>
+    ipcRenderer.invoke('identity:get-qr-code'),
 
   // ── Workspace ─────────────────────────────────────────────────────────────
   initWorkspace: () =>
@@ -30,6 +32,8 @@ contextBridge.exposeInMainWorld('api', {
     xPublicKey: string
     note?: string
   }) => ipcRenderer.invoke('contacts:add', p),
+  addContactFromQr: (p: { qrData: string }) =>
+    ipcRenderer.invoke('contacts:add-from-qr', p),
   deleteContact: (id: string) =>
     ipcRenderer.invoke('contacts:delete', id),
   blockContact: (id: string) =>

@@ -7,6 +7,7 @@ import ContactsPage from './pages/ContactsPage'
 import SettingsPage from './pages/SettingsPage'
 import SharePage from './pages/SharePage'
 import AddContactPage from './pages/AddContactPage'
+import ScanContactPage from './pages/ScanContactPage'
 
 type AppState = 'loading' | 'no-identity' | 'locked' | 'unlocked'
 
@@ -60,6 +61,7 @@ export default function App() {
             <Route path="/chat/:contactId" element={<ChatPage />} />
             <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/add-contact" element={<AddContactPage />} />
+            <Route path="/scan-contact" element={<ScanContactPage />} />
             <Route path="/share" element={<SharePage />} />
             <Route
               path="/settings"

@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { useEffect, useState } from 'react'
 import { Copy, RefreshCw, Share2 } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
@@ -5,31 +6,33 @@ import QRDisplay from '../components/QRDisplay'
 
 interface Profile { displayName: string; publicId: string }
 
-export default function SharePage() {
+export default function SharePage(): ReactElement {
   const [profile, setProfile] = useState<Profile | null>(null)
-  const [copied, setCopied]   = useState(false)
+  const [qrData, setQrData] = useState('')
+  const [copied, setCopied] = useState(false)
 
-  async function load() {
-    const s = await window.api.getWorkspaceSummary()
-    setProfile(s.profile)
+  async function load(): Promise<void> {
+    const qr = await window.api.getQrCode()
+    setQrData(qr.qrData)
+    setProfile({ displayName: qr.displayName, publicId: qr.publicId })
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    void load()
+  }, [])
 
-  async function handleRegenerate() {
+  async function handleRegenerate(): Promise<void> {
     if (!confirm('Regenerate your public ID? Existing contacts will not be affected.')) return
     await window.api.regenerateIdentityId()
-    load()
+    await load()
   }
 
-  function handleCopy() {
+  function handleCopy(): void {
     if (!profile) return
-    navigator.clipboard.writeText(profile.publicId)
+    void navigator.clipboard.writeText(qrData)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
-
-  const qrData = profile ? JSON.stringify({ publicId: profile.publicId, displayName: profile.displayName }) : ''
 
   return (
     <AppLayout>
