@@ -55,10 +55,10 @@ export default function ContactsPage(): React.ReactNode {
       load()
     }
 
-    window.api.onIncomingContactRequest(handler)
+   const unsubscribe = window.api.onIncomingContactRequest(handler)
 
     return () => {
-      // Cleanup: ipcRenderer will be cleaned up when the page unmounts
+      unsubscribe()
     }
   }, [])
 

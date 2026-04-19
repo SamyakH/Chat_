@@ -40,9 +40,22 @@ export default function CallWindow({ onClose }: CallWindowProps) {
     }
   }, [onClose])
 
-  const toggleVideo = () => webrtc.toggleVideo()
+ const toggleVideo = () => webrtc.toggleVideo()
   const toggleAudio = () => webrtc.toggleAudio()
-  const endCall = () => webrtc.endCall()
+
+   const endCall = async () => {
+    try {
+      const state = webrtc.getCallState()
+      if (state.remotePublicId) {
+        await window.api.hangupCall(state.remotePublicId)
+      }
+    } catch (err) {
+      console.error('Failed to send hangup', err)
+    } finally {
+      webrtc.endCall()
+      onClose()
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex items-center justify-center">

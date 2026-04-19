@@ -1,6 +1,7 @@
 interface CallState {
   active: boolean
-  contactId: string | null
+  // This is the remote peer's publicId, not the local contacts.id
+  remotePublicId: string | null
   isIncoming: boolean
   hasLocalVideo: boolean
   hasLocalAudio: boolean
@@ -50,7 +51,7 @@ export class WebRTCManager extends SimpleEmitter {
   private remoteStream: MediaStream | null = null
   private callState: CallState = {
     active: false,
-    contactId: null,
+    remotePublicId: null,
     isIncoming: false,
     hasLocalVideo: false,
     hasLocalAudio: false,
@@ -71,8 +72,9 @@ export class WebRTCManager extends SimpleEmitter {
   }
 
   private setupSignalingListener(): void {
+    // Keep unsubscribe if needed later; for now just register once on singleton construction
     window.api.onSignalingMessage((msg) => {
-      this.handleSignalingMessage(msg)
+      void this.handleSignalingMessage(msg)
     })
   }
 
@@ -85,9 +87,9 @@ export class WebRTCManager extends SimpleEmitter {
     })
 
     pc.onicecandidate = (e) => {
-      if (e.candidate && this.callState.contactId) {
+      if (e.candidate && this.callState.remotePublicId) {
         window.api.sendSignalingCandidate({
-          contactId: this.callState.contactId,
+          contactId: this.callState.remotePublicId,
           candidate: e.candidate
         })
       }
@@ -138,9 +140,9 @@ export class WebRTCManager extends SimpleEmitter {
       this.peerConnection!.addTrack(track, this.localStream!)
     })
 
-    this.callState = {
+   this.callState = {
       active: true,
-      contactId,
+      remotePublicId: contactId,
       isIncoming: false,
       hasLocalVideo: enableVideo,
       hasLocalAudio: enableAudio,
@@ -172,7 +174,7 @@ export class WebRTCManager extends SimpleEmitter {
     const answer = await this.peerConnection.createAnswer()
     await this.peerConnection.setLocalDescription(answer)
 
-    window.api.sendCallAnswer(this.callState.contactId!, answer)
+       window.api.sendCallAnswer(this.callState.remotePublicId!, answer)
     this.emit('local-stream', this.localStream)
   }
 
@@ -201,7 +203,7 @@ export class WebRTCManager extends SimpleEmitter {
       await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data as RTCSessionDescriptionInit))
       this.callState = {
         active: true,
-        contactId: senderId ?? null,
+        remotePublicId: senderId ?? null,
         isIncoming: true,
         hasLocalVideo: false,
         hasLocalAudio: false,
@@ -258,7 +260,7 @@ export class WebRTCManager extends SimpleEmitter {
 
     this.callState = {
       active: false,
-      contactId: null,
+      remotePublicId: null,
       isIncoming: false,
       hasLocalVideo: false,
       hasLocalAudio: false,

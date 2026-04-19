@@ -28,6 +28,11 @@ const StatusSchema = z.object({
   status: z.enum(['sent', 'delivered', 'failed'])
 })
 
+const EditSchema = z.object({
+  messageId: z.string().uuid(),
+  text: z.string().min(1).max(10_000)
+})
+
 function normalizeMessage(record: any) {
   return {
     id: record.id,
@@ -71,16 +76,23 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
     }
 
     let sessionKey: Uint8Array
+    let myPrivate: Buffer | null = null
+    let theirPublic: Buffer | null = null
     try {
-      const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
-      const theirPublic = Buffer.from(contact.x_public_key, 'base64')
+      myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
+      theirPublic = Buffer.from(contact.x_public_key, 'base64')
       sessionKey = await deriveSessionKey(myPrivate, theirPublic)
     } catch {
       throw new Error('Unable to derive a secure session for this contact.')
+    } finally {
+      // Best-effort zeroization of temporary key material
+      if (myPrivate) myPrivate.fill(0)
+      if (theirPublic) theirPublic.fill(0)
     }
 
     const signingPrivateKeyBuffer = Buffer.from(keys.signing.privateKey, 'base64')
     const encrypted = await encryptMessage(text, sessionKey, signingPrivateKeyBuffer)
+    signingPrivateKeyBuffer.fill(0)
 
     const createdAt = Date.now()
     const msg: Message = {
@@ -107,15 +119,18 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
   ipcMain.handle('messages:edit', async (_, payload: unknown) => {
     requireUnlocked()
     initStorage()
-    const p = payload as { messageId: string; text: string }
-    if (!p.messageId || !p.text) throw new Error('Invalid payload')
-    
+    const p = EditSchema.parse(payload)
+
     // Update plaintext and mark as edited
     // Note: ciphertext remains immutable (original encrypted version sent to peer)
     // Only the local plaintext display is updated
     const db = getDb()
-    db.prepare('UPDATE messages SET plaintext = ?, is_edited = 1 WHERE id = ?').run(p.text, p.messageId)
+    db.prepare('UPDATE messages SET plaintext = ?, is_edited = 1 WHERE id = ?')
+      .run(p.text, p.messageId)
     const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(p.messageId) as any
+    if (!msg) {
+      throw new Error('Message not found')
+    }
     return normalizeMessage(msg)
   })
 

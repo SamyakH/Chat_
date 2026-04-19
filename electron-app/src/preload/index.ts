@@ -59,15 +59,21 @@ const api: Api = {
   sendCallOffer: (contactId: string, offer: any) => ipcRenderer.invoke('calls:offer', contactId, offer),
   sendCallAnswer: (contactId: string, answer: any) => ipcRenderer.invoke('calls:answer-send', contactId, answer),
   onSignalingMessage: (callback: (msg: any) => void) => {
-    ipcRenderer.on('signaling:message', (_, msg) => callback(msg))
+    const listener = (_: Electron.IpcRendererEvent, msg: any) => callback(msg)
+    ipcRenderer.on('signaling:message', listener)
+    return () => ipcRenderer.removeListener('signaling:message', listener)
   },
 
   onIncomingContactRequest: (callback) => {
-    ipcRenderer.on('contacts:request:incoming', (_, req) => callback(req))
+    const listener = (_: Electron.IpcRendererEvent, req: any) => callback(req)
+    ipcRenderer.on('contacts:request:incoming', listener)
+    return () => ipcRenderer.removeListener('contacts:request:incoming', listener)
   },
 
   onMessageReceived: (callback) => {
-    ipcRenderer.on('messages:received', (_, payload) => callback(payload))
+    const listener = (_: Electron.IpcRendererEvent, payload: any) => callback(payload)
+    ipcRenderer.on('messages:received', listener)
+    return () => ipcRenderer.removeListener('messages:received', listener)
   }
 }
 

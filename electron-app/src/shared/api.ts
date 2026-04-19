@@ -110,7 +110,7 @@ export interface Api {
   sendSignalingCandidate: (p: { contactId: string; candidate: any }) => Promise<void>
   sendCallOffer: (contactId: string, offer: any) => Promise<void>
   sendCallAnswer: (contactId: string, answer: any) => Promise<void>
-  onSignalingMessage: (callback: (msg: any) => void) => void
+  onSignalingMessage: (callback: (msg: any) => void) => () => void
 
    // Events
   onIncomingContactRequest: (callback: (req: {
@@ -118,8 +118,8 @@ export interface Api {
     publicId: string
     displayName: string
     createdAt: number
-  }) => void) => void
+  }) => void) => () => void
 
-  onMessageReceived: (callback: (p: { conversationId: string }) => void) => void
+  onMessageReceived: (callback: (p: { conversationId: string }) => void) => () => void
 
 }

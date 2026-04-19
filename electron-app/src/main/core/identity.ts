@@ -213,16 +213,28 @@ export function lockIdentity(): IdentityState {
   return makeState(readIdentity())
 }
 
-export function burnAccount(): void {
-  // Emergency wipe all data
+function performEmergencyWipe(): void {
+  // Centralized emergency wipe: lock identity, shut down network, delete data dir
   isUnlocked = false
   try {
     closeStorage()
-    // Recursively delete entire user data directory
+    try {
+      getNetworkInstance().shutdown()
+    } catch {
+      // Ignore if network not initialized
+    }
     fs.rmSync(getDataDir(), { recursive: true, force: true, maxRetries: 5 })
   } catch {
     // Ignore cleanup errors
   }
+}
+
+/**
+ * Emergency wipe invoked from renderer (e.g. Login burn button).
+ * Kept for IPC compatibility; delegates to shared wipe routine.
+ */
+export function burnAccount(): void {
+  performEmergencyWipe()
 }
 
 export function updateIdentityProfile(payload: {
@@ -322,14 +334,22 @@ async function handleIncomingMessage(msg: any): Promise<void> {
     const keys = getIdentityKeys()
     if (!keys) return
 
-    const contact = getContactByPublicId(msg.senderId) as any
+     const contact = getContactByPublicId(msg.senderId) as any
     if (!contact) return // Unknown sender
 
     if (typeof contact.x_public_key !== 'string') return
 
-     const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
-    const theirPublic = Buffer.from(contact.x_public_key, 'base64')
-    const sessionKey = await deriveSessionKey(myPrivate, theirPublic)
+    let myPrivate: Buffer | null = null
+    let theirPublic: Buffer | null = null
+    let sessionKey: Uint8Array
+    try {
+      myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
+      theirPublic = Buffer.from(contact.x_public_key, 'base64')
+      sessionKey = await deriveSessionKey(myPrivate, theirPublic)
+    } finally {
+      if (myPrivate) myPrivate.fill(0)
+      if (theirPublic) theirPublic.fill(0)
+    }
 
     const packet = {
       ciphertext: msg.data.ciphertext,
@@ -345,11 +365,13 @@ async function handleIncomingMessage(msg: any): Promise<void> {
       return
     }
 
+    const signingPubKey = Buffer.from(contact.ed_public_key, 'base64')
     const plaintext = await decryptMessage(
       packet,
       sessionKey,
-      Buffer.from(contact.ed_public_key, 'base64')
+      signingPubKey
     )
+    signingPubKey.fill(0)
 
         const localConversationId = `conv-${contact.id}`
 

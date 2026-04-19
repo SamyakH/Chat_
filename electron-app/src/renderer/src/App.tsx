@@ -15,7 +15,7 @@ import { webrtc } from './core/webrtc-manager'
 type AppState = 'loading' | 'no-identity' | 'locked' | 'unlocked'
 
 type IncomingCallState = {
-  contactId: string | null
+  remotePublicId: string | null
   isIncoming: boolean
 }
 
@@ -41,8 +41,11 @@ export default function App(): ReactElement {
   useEffect(() => {
     const onIncoming = (state: unknown): void => {
       if (!state || typeof state !== 'object') return
-      const typedState = state as { contactId?: string | null; isIncoming: boolean }
-      setIncomingCall({ contactId: typedState.contactId ?? null, isIncoming: typedState.isIncoming })
+      const typedState = state as { remotePublicId?: string | null; isIncoming: boolean }
+      setIncomingCall({
+        remotePublicId: typedState.remotePublicId ?? null,
+        isIncoming: typedState.isIncoming
+      })
     }
 
     const onCallStarted = (): void => {
@@ -78,10 +81,10 @@ export default function App(): ReactElement {
 
   async function handleDeclineIncomingCall(): Promise<void> {
     try {
-      const state = webrtc.getCallState()
-      if (state.contactId) {
-        await window.api.hangupCall(state.contactId)
-      }
+    const state = webrtc.getCallState()
+    if (state.remotePublicId) {
+      await window.api.hangupCall(state.remotePublicId)
+    }
     } catch (err) {
       console.error('Failed to send hangup', err)
     } finally {
@@ -150,7 +153,7 @@ export default function App(): ReactElement {
 
         {incomingCall && appState === 'unlocked' && (
           <IncomingCallOverlay
-            contactId={incomingCall.contactId}
+            remotePublicId={incomingCall.remotePublicId}
             onAccept={handleAcceptIncomingCall}
             onDecline={handleDeclineIncomingCall}
           />
@@ -170,11 +173,11 @@ export default function App(): ReactElement {
 }
 
 function IncomingCallOverlay({
-  contactId,
+  remotePublicId,
   onAccept,
   onDecline
 }: {
-  contactId: string | null
+  remotePublicId: string | null
   onAccept: () => void
   onDecline: () => void
 }): ReactElement {
@@ -187,7 +190,7 @@ function IncomingCallOverlay({
         <div>
           <p className="text-sm text-white font-medium">Incoming call</p>
           <p className="text-xs text-gray-400">
-            {contactId ? `From ${contactId}` : 'Unknown contact'}
+            {remotePublicId ? `From ${remotePublicId}` : 'Unknown contact'}
           </p>
         </div>
         <div className="flex gap-2 ml-4">

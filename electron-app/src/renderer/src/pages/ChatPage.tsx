@@ -61,11 +61,10 @@ useEffect(() => {
         })
     }
 
-    window.api.onMessageReceived(handler)
+     const unsubscribe = window.api.onMessageReceived(handler)
 
     return () => {
-      // ipcRenderer listener is cleaned up when window is destroyed;
-      // if you want explicit off, you'd add a corresponding removeListener in preload.
+      unsubscribe()
     }
   }, [convId])
 
