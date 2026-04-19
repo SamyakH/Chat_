@@ -2,8 +2,24 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { initCrypto, generateSigningKeyPair, generateExchangeKeyPair, decryptMessage, deriveSessionKey } from './cryptography'
-import { closeStorage, initStorage, storeIdentityKeys, getContactByPublicId, storeMessage, getIdentityKeys } from './storage'
+import {
+  initCrypto,
+  generateSigningKeyPair,
+  generateExchangeKeyPair,
+  decryptMessage,
+  deriveSessionKey,
+  computeFingerprint
+} from './cryptography'
+import {
+  closeStorage,
+  initStorage,
+  storeIdentityKeys,
+  getContactByPublicId,
+  storeMessage,
+  getIdentityKeys,
+  trackNonce,
+  storeContactRequest
+} from './storage'
 import { initializeNetwork, getNetworkInstance } from './networking'
 import { mainWindow } from '../index'
 
@@ -170,12 +186,18 @@ export function unlockIdentity(passcode: string): IdentityState {
 
   // Initialize network
   initializeNetwork(identity.profile.publicId)
-  getNetworkInstance().on('message:received', handleIncomingMessage)
-  getNetworkInstance().on('signaling:received', (msg) => {
+  const network = getNetworkInstance()
+
+  network.on('message:received', handleIncomingMessage)
+
+  network.on('signaling:received', (msg) => {
     if (mainWindow) {
       mainWindow.webContents.send('signaling:message', msg)
     }
   })
+
+  // Listen for incoming contact requests
+  network.on('contact-request:received', handleIncomingContactRequest)
 
   return makeState(identity)
 }
@@ -235,6 +257,65 @@ export function regenerateIdentityPublicId(): IdentityState {
   return makeState(identity)
 }
 
+async function handleIncomingContactRequest(msg: any): Promise<void> {
+  try {
+    // Expected msg shape:
+    // {
+    //   protocolVersion: 1,
+    //   kind: 'system',
+    //   type: 'contact-request',
+    //   senderId: 'anon-...',
+    //   receiverId: 'anon-...',
+    //   data: {
+    //     publicId: string,
+    //     displayName: string,
+    //     edPublicKey: string,
+    //     xPublicKey: string
+    //   },
+    //   timestamp: number
+    // }
+
+    if (!msg || typeof msg !== 'object') return
+    const { senderId, receiverId, data } = msg as any
+    if (!senderId || !receiverId || !data) return
+
+    const identity = readIdentity()
+    if (!identity) return
+    if (receiverId !== identity.profile.publicId) return // Not for us
+    if (senderId === identity.profile.publicId) return // Ignore our own
+
+    const { publicId, displayName, edPublicKey, xPublicKey } = data as any
+    if (!publicId || !displayName || !edPublicKey || !xPublicKey) return
+
+    // Store as an incoming contact request (if not already present)
+    initStorage()
+
+    // Use remote publicId as both primary key and unique remote_public_id
+    const requestId = publicId
+    storeContactRequest({
+      id: requestId,
+      remotePublicId: publicId,
+      displayName,
+      edPublicKey,
+      xPublicKey,
+      direction: 'incoming',
+      status: 'pending'
+    })
+
+    // Optionally notify renderer (for badge/etc.)
+    if (mainWindow) {
+      mainWindow.webContents.send('contacts:request:incoming', {
+        id: requestId,
+        publicId,
+        displayName,
+        createdAt: Date.now()
+      })
+    }
+  } catch (err) {
+    console.error('Failed to handle incoming contact request:', err)
+  }
+}
+
 async function handleIncomingMessage(msg: any): Promise<void> {
   try {
     await initCrypto()
@@ -246,7 +327,7 @@ async function handleIncomingMessage(msg: any): Promise<void> {
 
     if (typeof contact.x_public_key !== 'string') return
 
-    const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
+     const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
     const theirPublic = Buffer.from(contact.x_public_key, 'base64')
     const sessionKey = await deriveSessionKey(myPrivate, theirPublic)
 
@@ -255,11 +336,26 @@ async function handleIncomingMessage(msg: any): Promise<void> {
       nonce: msg.data.nonce,
       signature: msg.data.signature
     }
-    const plaintext = await decryptMessage(packet, sessionKey, Buffer.from(contact.ed_public_key, 'base64'))
+
+    // Replay protection: ensure this nonce has not been seen before for this sender
+    const nonceOk = trackNonce(msg.senderId, packet.nonce)
+
+    if (!nonceOk) {
+      console.warn('Replay detected for message from', msg.senderId)
+      return
+    }
+
+    const plaintext = await decryptMessage(
+      packet,
+      sessionKey,
+      Buffer.from(contact.ed_public_key, 'base64')
+    )
+
+        const localConversationId = `conv-${contact.id}`
 
     const message = {
       id: msg.data.id,
-      conversationId: msg.data.conversationId,
+      conversationId: localConversationId,
       contactId: contact.id,
       direction: 'incoming' as const,
       plaintext,
@@ -273,6 +369,14 @@ async function handleIncomingMessage(msg: any): Promise<void> {
       createdAt: msg.timestamp
     }
     storeMessage(message)
+
+    // Notify renderer that a new message arrived for this local conversation
+    if (mainWindow) {
+      mainWindow.webContents.send('messages:received', {
+        conversationId: localConversationId
+      })
+    }
+
   } catch (err) {
     console.error('Failed to handle incoming message:', err)
   }

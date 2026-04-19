@@ -51,16 +51,23 @@ const api: Api = {
   executeWipe: (p: { confirmation: 'DESTROY' }) => ipcRenderer.invoke('wipe:execute', p),
 
   // ── Calling ───────────────────────────────────────────────────────────────
-  startCall: (contactId: string) => ipcRenderer.invoke('calls:start', contactId),
-  answerCall: (contactId: string) => ipcRenderer.invoke('calls:answer', contactId),
   hangupCall: (contactId: string) => ipcRenderer.invoke('calls:hangup', contactId),
   sendSignalingMessage: (p: { contactId: string; type: string; data: any }) =>
     ipcRenderer.invoke('calls:signaling', p),
-  sendSignalingCandidate: (candidate: any) => ipcRenderer.invoke('calls:candidate', candidate),
+  sendSignalingCandidate: (p: { contactId: string; candidate: any }) =>
+    ipcRenderer.invoke('calls:candidate', p),
   sendCallOffer: (contactId: string, offer: any) => ipcRenderer.invoke('calls:offer', contactId, offer),
   sendCallAnswer: (contactId: string, answer: any) => ipcRenderer.invoke('calls:answer-send', contactId, answer),
   onSignalingMessage: (callback: (msg: any) => void) => {
     ipcRenderer.on('signaling:message', (_, msg) => callback(msg))
+  },
+
+  onIncomingContactRequest: (callback) => {
+    ipcRenderer.on('contacts:request:incoming', (_, req) => callback(req))
+  },
+
+  onMessageReceived: (callback) => {
+    ipcRenderer.on('messages:received', (_, payload) => callback(payload))
   }
 }
 

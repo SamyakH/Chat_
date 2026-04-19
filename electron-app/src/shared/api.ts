@@ -105,12 +105,21 @@ export interface Api {
   executeWipe(p: { confirmation: 'DESTROY' }): Promise<{ ok: boolean }>
 
   // Calling
-  startCall: (contactId: string) => Promise<void>
-  answerCall: (contactId: string) => Promise<void>
   hangupCall: (contactId: string) => Promise<void>
   sendSignalingMessage: (p: { contactId: string; type: string; data: any }) => Promise<void>
-  sendSignalingCandidate: (candidate: any) => Promise<void>
+  sendSignalingCandidate: (p: { contactId: string; candidate: any }) => Promise<void>
   sendCallOffer: (contactId: string, offer: any) => Promise<void>
   sendCallAnswer: (contactId: string, answer: any) => Promise<void>
   onSignalingMessage: (callback: (msg: any) => void) => void
+
+   // Events
+  onIncomingContactRequest: (callback: (req: {
+    id: string
+    publicId: string
+    displayName: string
+    createdAt: number
+  }) => void) => void
+
+  onMessageReceived: (callback: (p: { conversationId: string }) => void) => void
+
 }

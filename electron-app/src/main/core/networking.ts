@@ -16,7 +16,21 @@ type WS = typeof WebSocket.prototype & {
 export type ConnectionStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'failed'
 
 export interface NetworkMessage {
-  type: 'text' | 'signal' | 'status' | 'offer' | 'answer' | 'candidate' | 'hangup' | string
+  /**
+   * Protocol version for compatibility. Current: 1
+   */
+  protocolVersion: number
+  /**
+   * High-level kind of message.
+   * 'user'      - encrypted chat message
+   * 'signaling' - WebRTC / call signaling (offer/answer/candidate/hangup)
+   * 'system'    - registration, status, etc.
+   */
+  kind: 'user' | 'signaling' | 'system'
+  /**
+   * Subtype within a kind, e.g. 'message', 'offer', 'answer', 'candidate', 'hangup', 'register'
+   */
+  type: 'message' | 'offer' | 'answer' | 'candidate' | 'hangup' | 'register' | string
   senderId: string
   receiverId: string
   data: any
@@ -36,23 +50,39 @@ export class P2PNetwork extends EventEmitter {
   private signalingUrl: string
   private ws: WS | null = null
 
-  constructor(localPeerId: string, signalingUrl: string = 'wss://signal.anonc.chat') {
+  constructor(localPeerId: string, signalingUrl: string = 'ws://localhost:8080') {
     super()
     this.localPeerId = localPeerId
     this.signalingUrl = signalingUrl
     this.connectToSignalingServer()
   }
 
-  private connectToSignalingServer(): void {
+  private flushQueue(): void {
+    if (!this.ws || this.ws.readyState !== 1) return
+    while (this.messageQueue.length > 0) {
+      const queued = this.messageQueue.shift()!
+      this.ws.send(JSON.stringify(queued))
+    }
+  }
+
+    private connectToSignalingServer(): void {
     this.ws = new WebSocket(this.signalingUrl)
 
     this.ws.on('open', () => {
       console.log('Connected to signaling server')
       // Register this peer
-      this.ws!.send(JSON.stringify({
+      const registerMsg: NetworkMessage = {
+        protocolVersion: 1,
+        kind: 'system',
         type: 'register',
-        peerId: this.localPeerId
-      }))
+        senderId: this.localPeerId,
+        receiverId: 'server',
+        data: { peerId: this.localPeerId },
+        timestamp: Date.now()
+      }
+      this.ws!.send(JSON.stringify(registerMsg))
+      // Flush any queued messages now that the socket is open
+      this.flushQueue()
     })
 
     this.ws.on('message', (data: Buffer) => {
@@ -76,13 +106,32 @@ export class P2PNetwork extends EventEmitter {
   }
 
   private handleIncomingMessage(msg: any): void {
-    if (msg.type === 'message' && msg.receiverId === this.localPeerId) {
-      this.emit('message:received', msg)
-    } else if (msg.type === 'offer' || msg.type === 'answer' || msg.type === 'candidate' || msg.type === 'hangup') {
-      // Signaling message
-      this.emit('signaling:received', msg)
+    // Basic shape guard
+    if (!msg || typeof msg !== 'object') return
+
+    const { protocolVersion, kind, type, receiverId } = msg as Partial<NetworkMessage>
+
+    // For now, accept messages without protocolVersion as v1
+    const version = typeof protocolVersion === 'number' ? protocolVersion : 1
+    if (version !== 1) {
+      console.warn('Unsupported protocol version', version)
+      return
     }
-    // Handle other types
+
+    // Route by kind/type
+    if (kind === 'user' && type === 'message' && receiverId === this.localPeerId) {
+      this.emit('message:received', msg)
+    } else if (
+      kind === 'signaling' &&
+      (type === 'offer' || type === 'answer' || type === 'candidate' || type === 'hangup')
+    ) {
+      this.emit('signaling:received', msg)
+    } else if (kind === 'system') {
+      if (type === 'contact-request' && receiverId === this.localPeerId) {
+        this.emit('contact-request:received', msg)
+      }
+      // Other system message types can be added here
+    }
   }
 
   /**
@@ -96,25 +145,45 @@ export class P2PNetwork extends EventEmitter {
    * Send a signaling message (offer, answer, candidate, etc.) via WebSocket
    */
   sendSignalingMessage(receiverId: string, type: string, data: any): void {
-    if (!this.ws || this.ws.readyState !== 1) {
-      // WebSocket not ready, queue for later
-      this.messageQueue.push({
-        type,
-        senderId: this.localPeerId,
-        receiverId,
-        data,
-        timestamp: Date.now()
-      })
-      return
-    }
-
-    this.ws.send(JSON.stringify({
+    const envelope: NetworkMessage = {
+      protocolVersion: 1,
+      kind: 'signaling',
       type,
       senderId: this.localPeerId,
       receiverId,
       data,
       timestamp: Date.now()
-    }))
+    }
+
+    if (!this.ws || this.ws.readyState !== 1) {
+      // WebSocket not ready, queue for later
+      this.messageQueue.push(envelope)
+      return
+    }
+
+    this.ws.send(JSON.stringify(envelope))
+  }
+
+  /**
+   * Send a system message (e.g., contact-request) via WebSocket
+   */
+  sendSystemMessage(receiverId: string, type: string, data: any): void {
+    const envelope: NetworkMessage = {
+      protocolVersion: 1,
+      kind: 'system',
+      type,
+      senderId: this.localPeerId,
+      receiverId,
+      data,
+      timestamp: Date.now()
+    }
+
+    if (!this.ws || this.ws.readyState !== 1) {
+      this.messageQueue.push(envelope)
+      return
+    }
+
+    this.ws.send(JSON.stringify(envelope))
   }
 
   /**
@@ -162,38 +231,35 @@ export class P2PNetwork extends EventEmitter {
     }
   }
 
-  /**
-   * Send encrypted message to peer
+ /**
+   * Send encrypted message to peer (relayed via signaling server for now).
+   * Uses the same 'message' type as incoming handler expects.
    */
   async sendMessage(
     recipientId: string,
     message: any
   ): Promise<void> {
-    if (!this.ws || this.ws.readyState !== 1) {
-      // Queue message for later delivery (readyState 1 = OPEN)
-      this.messageQueue.push({
-        type: 'text',
-        senderId: this.localPeerId,
-        receiverId: recipientId,
-        data: message,
-        timestamp: Date.now()
-      })
-      return
-    }
-
-    // Send via signaling server (relay)
-    this.ws!.send(JSON.stringify({
+    const envelope: NetworkMessage = {
+      protocolVersion: 1,
+      kind: 'user',
       type: 'message',
       senderId: this.localPeerId,
       receiverId: recipientId,
       data: message,
       timestamp: Date.now()
-    }))
+    }
+
+    if (!this.ws || this.ws.readyState !== 1) {
+      // WebSocket not ready, queue for later
+      this.messageQueue.push(envelope)
+    } else {
+      this.ws.send(JSON.stringify(envelope))
+    }
 
     this.emit('message:sent', {
       messageId: message.id,
       recipientId,
-      timestamp: Date.now()
+      timestamp: envelope.timestamp
     })
   }
 
@@ -243,6 +309,13 @@ export function initializeNetwork(localPeerId: string): P2PNetwork {
 }
 
 export function getNetworkInstance(): P2PNetwork {
-  if (!networkInstance) throw new Error('Network not initialized')
+  if (!networkInstance) {
+    const identityModule = require('./identity') as typeof import('./identity')
+    const state = identityModule.getIdentityState()
+    if (!state.profile) {
+      throw new Error('Network not initialized')
+    }
+    networkInstance = new P2PNetwork(state.profile.publicId)
+  }
   return networkInstance
 }

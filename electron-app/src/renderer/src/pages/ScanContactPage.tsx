@@ -4,7 +4,7 @@ import { QrCode, Camera, AlertTriangle } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import { Html5Qrcode } from 'html5-qrcode'
 
-export default function ScanContactPage() {
+export default function ScanContactPage(): React.ReactNode {
   const navigate = useNavigate()
   const [status, setStatus] = useState('Point your camera at a valid contact QR code')
   const [error, setError] = useState('')
@@ -80,7 +80,7 @@ export default function ScanContactPage() {
           <h1 className="text-lg font-semibold text-white">Scan Contact</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-6 content-auto">
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="bg-gray-900 border border-gray-800 rounded-3xl p-6 text-center">
               <Camera className="mx-auto mb-4 w-10 h-10 text-teal-400" />
@@ -108,7 +108,7 @@ export default function ScanContactPage() {
                 <p className="mt-3 text-sm text-teal-300">Redirecting to contacts...</p>
               ) : (
                 <p className="mt-3 text-sm text-gray-500">
-                  If your camera doesn't start, you can manually add a contact using the QR payload
+                  If your camera does not start, you can manually add a contact using the QR payload
                   from the other device.
                 </p>
               )}

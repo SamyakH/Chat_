@@ -10,7 +10,7 @@ interface ParsedContactPayload {
   xPublicKey: string
 }
 
-export default function AddContactPage() {
+export default function AddContactPage(): React.ReactNode {
   const navigate = useNavigate()
   const [displayName, setName] = useState('')
   const [contactPayload, setPayload] = useState('')
@@ -41,7 +41,7 @@ export default function AddContactPage() {
     return parsed as ParsedContactPayload
   }
 
-  async function handleAdd() {
+  async function handleAdd(): Promise<void> {
     setError('')
     if (!displayName.trim()) {
       setError('Display name is required')
@@ -86,7 +86,7 @@ export default function AddContactPage() {
           <h1 className="text-lg font-semibold text-white">Add Contact</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6">
+        <div className="flex-1 overflow-y-auto px-6 py-6 content-auto">
           <div className="max-w-md space-y-4">
             {success ? (
               <div className="flex flex-col items-center gap-3 py-12">

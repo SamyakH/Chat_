@@ -27,7 +27,7 @@ export default function SharePage(): ReactElement {
   }
 
   useEffect(() => {
-    setTimeout(load, 0)
+    load()
   }, [])
 
   async function handleRegenerate(): Promise<void> {
@@ -51,7 +51,7 @@ export default function SharePage(): ReactElement {
           <h1 className="text-lg font-semibold text-white">Share Identity</h1>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6">
+        <div className="flex-1 flex flex-col items-center justify-center gap-8 px-6 content-auto">
           {error ? (
             <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-4 py-3 text-sm text-red-300">
               {error}

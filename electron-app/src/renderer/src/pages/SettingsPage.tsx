@@ -8,7 +8,7 @@ interface Profile {
   publicId: string
 }
 
-export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
+export default function SettingsPage({ onLocked }: { onLocked: () => void }): React.ReactNode {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [name, setName] = useState('')
   const [status, setStatus] = useState('')
@@ -31,7 +31,7 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
       })
   }, [])
 
-  async function handleSave() {
+  async function handleSave(): Promise<void> {
     setSaving(true)
     setSaved(false)
     setError('')
@@ -46,12 +46,12 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
     }
   }
 
-  async function handleLock() {
+  async function handleLock(): Promise<void> {
     await window.api.lockIdentity()
     onLocked()
   }
 
-  async function handleWipe() {
+  async function handleWipe(): Promise<void> {
     if (wipeText !== 'DESTROY') return
     setWiping(true)
     try {
@@ -70,7 +70,7 @@ export default function SettingsPage({ onLocked }: { onLocked: () => void }) {
           <h1 className="text-lg font-semibold text-white">Settings</h1>
         </div>
 
-        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 max-w-lg">
+        <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 max-w-lg content-auto">
           {/* Profile */}
           <section>
             <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">

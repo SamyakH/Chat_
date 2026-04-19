@@ -1,18 +1,25 @@
 import { useEffect, useState, useRef } from 'react'
+import type { MouseEvent, ReactElement } from 'react'
 import { useParams, Link } from 'react-router-dom'
-import { Send, MessageSquare, UserPlus } from 'lucide-react'
+import { Send, MessageSquare, UserPlus, Phone } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
 import MessageBubble from '../components/MessageBubble'
 import EncryptionBadge from '../components/EncryptionBadge'
+import { webrtc } from '../core/webrtc-manager'
 import type { Contact, Message } from '../../../shared/api'
 
-export default function ChatPage() {
+export default function ChatPage(): ReactElement {
   const { contactId } = useParams<{ contactId: string }>()
   const [contacts, setContacts] = useState<Contact[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [text, setText] = useState('')
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const [contextMenu, setContextMenu] = useState<{
+    messageId: string
+    x: number
+    y: number
+  } | null>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   const selected = contacts.find((c) => c.id === contactId) ?? null
@@ -27,12 +34,12 @@ export default function ChatPage() {
       })
   }, [])
 
-  useEffect(() => {
+useEffect(() => {
     if (!convId) {
-      setTimeout(() => setMessages([]), 0)
+      setMessages([])
       return
     }
-    setTimeout(() => setError(''), 0)
+    setError('')
     window.api
       .loadMessages(convId)
       .then((m) => setMessages(m))
@@ -42,10 +49,87 @@ export default function ChatPage() {
   }, [convId])
 
   useEffect(() => {
+    // Listen for incoming messages and reload if they are for this conversation
+    const handler = (p: { conversationId: string }): void => {
+      if (!convId) return
+      if (p.conversationId !== convId) return
+      window.api
+        .loadMessages(convId)
+        .then((m) => setMessages(m))
+        .catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : 'Failed to load messages')
+        })
+    }
+
+    window.api.onMessageReceived(handler)
+
+    return () => {
+      // ipcRenderer listener is cleaned up when window is destroyed;
+      // if you want explicit off, you'd add a corresponding removeListener in preload.
+    }
+  }, [convId])
+
+  useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  async function handleSend() {
+  function handleMessageRightClick(messageId: string, event: MouseEvent<HTMLDivElement>): void {
+    event.preventDefault()
+    setContextMenu({
+      messageId,
+      x: event.clientX,
+      y: event.clientY
+    })
+  }
+
+  function closeContextMenu(): void {
+    setContextMenu(null)
+  }
+
+  async function handleContextCopy(messageId: string): Promise<void> {
+    const msg = messages.find((m) => m.id === messageId)
+    if (!msg) return
+    try {
+      await navigator.clipboard.writeText(msg.plaintext)
+    } catch (err) {
+      console.error('Failed to copy message text', err)
+    }
+    closeContextMenu()
+  }
+
+  async function handleContextDelete(messageId: string): Promise<void> {
+    if (!confirm('Delete this message?')) return
+    try {
+      await window.api.deleteMessage(messageId)
+      setMessages((prev) => prev.filter((m) => m.id !== messageId))
+    } catch (err: unknown) {
+      console.error('Failed to delete message', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete message')
+    } finally {
+      closeContextMenu()
+    }
+  }
+
+  async function handleContextEdit(messageId: string): Promise<void> {
+    const msg = messages.find((m) => m.id === messageId)
+    if (!msg) return
+    const newText = prompt('Edit message', msg.plaintext)
+    if (newText === null || !newText.trim()) {
+      closeContextMenu()
+      return
+    }
+    try {
+      const updated = await window.api.editMessage({ messageId, text: newText.trim() })
+      setMessages((prev) => prev.map((m) => (m.id === messageId ? updated : m)))
+    } catch (err: unknown) {
+      console.error('Failed to edit message', err)
+      setError(err instanceof Error ? err.message : 'Failed to edit message')
+    } finally {
+      closeContextMenu()
+    }
+  }
+
+  async function handleSend(): Promise<void> {
     if (!text.trim() || !selected || !convId || sending) return
     setSending(true)
     setError('')
@@ -61,6 +145,16 @@ export default function ChatPage() {
       setError(err instanceof Error ? err.message : 'Failed to send message')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function handleStartCall(): Promise<void> {
+    if (!selected) return
+    try {
+      await webrtc.startCall(selected.id)
+    } catch (err) {
+      console.error('Failed to start call:', err)
+      setError(err instanceof Error ? err.message : 'Failed to start call')
     }
   }
 
@@ -129,20 +223,28 @@ export default function ChatPage() {
                   {selected.fingerprint.slice(0, 20)}…
                 </p>
               </div>
-              <div className="ml-auto">
+              <div className="ml-auto flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleStartCall}
+                  className="flex items-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-200 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  Call
+                </button>
                 <EncryptionBadge />
               </div>
             </div>
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-2 content-auto">
               {error && (
                 <div className="rounded-xl border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
                   {error}
                 </div>
               )}
               {messages.map((m) => (
-                <MessageBubble key={m.id} message={m} />
+                <MessageBubble key={m.id} message={m} onCopy={handleMessageRightClick} />
               ))}
               <div ref={bottomRef} />
             </div>
@@ -172,6 +274,45 @@ export default function ChatPage() {
           <div className="flex-1 flex flex-col items-center justify-center gap-3">
             <MessageSquare className="w-12 h-12 text-gray-800" />
             <p className="text-gray-600 text-sm">Select a contact to start a secure conversation</p>
+          </div>
+        )}
+
+        {contextMenu && (
+          <div
+            className="fixed inset-0 z-50"
+            onClick={closeContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              closeContextMenu()
+            }}
+          >
+            <div
+              className="absolute bg-gray-900 border border-gray-700 rounded-lg shadow-lg py-1 text-sm text-gray-100"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextCopy(contextMenu.messageId)}
+              >
+                Copy text
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextEdit(contextMenu.messageId)}
+              >
+                Edit message
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-red-900/60 text-red-300"
+                onClick={() => handleContextDelete(contextMenu.messageId)}
+              >
+                Delete message
+              </button>
+            </div>
           </div>
         )}
       </div>

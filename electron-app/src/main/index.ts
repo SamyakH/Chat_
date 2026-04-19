@@ -47,7 +47,8 @@ function createWindow(): void {
 
   if (isDev) {
     win.loadURL('http://localhost:5173')
-    win.webContents.openDevTools({ mode: 'detach' })
+    // Open devtools manually from the menu when needed to speed up startup
+    // win.webContents.openDevTools({ mode: 'detach' })
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'))
   }

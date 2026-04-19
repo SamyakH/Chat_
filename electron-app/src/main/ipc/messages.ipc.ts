@@ -17,7 +17,8 @@ import { getNetworkInstance } from '../core/networking'
 import type { Message } from '../../shared/api'
 
 const SendSchema = z.object({
-  contactId: z.string().uuid(),
+  // Use any non-empty string; contact IDs are TEXT in the DB and generated via randomUUID()
+  contactId: z.string().min(1),
   conversationId: z.string().min(1),
   text: z.string().min(1).max(10_000)
 })

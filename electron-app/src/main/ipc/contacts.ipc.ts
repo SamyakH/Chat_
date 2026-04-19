@@ -2,6 +2,7 @@ import type { IpcMain } from 'electron'
 import { z } from 'zod'
 import { randomUUID } from 'crypto'
 import { requireUnlocked, getIdentityProfile } from '../core/identity'
+import { getNetworkInstance } from '../core/networking'
 import {
   storeContact,
   loadContacts,
@@ -14,7 +15,8 @@ import {
   acceptContactRequest,
   declineContactRequest,
   getDb,
-  getContactById
+  getContactById,
+  getIdentityKeys
 } from '../core/storage'
 import { computeFingerprint } from '../core/cryptography'
 import type { Contact } from '../../shared/api'
@@ -29,6 +31,12 @@ const AddContactSchema = z.object({
 
 const AddFromQrSchema = z.object({
   qrData: z.string().min(1)
+})
+
+const UpdateContactSchema = z.object({
+  id: z.string().uuid(),
+  displayName: z.string().min(1).max(60).optional(),
+  note: z.string().max(200).optional()
 })
 
 function normalizeContact(record: any) {
@@ -119,6 +127,27 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
       }
       throw error
     }
+
+    // After adding locally, send a contact-request notification to the remote party
+    try {
+      const profile = getIdentityProfile()
+      const keys = getIdentityKeys()
+      if (!keys) throw new Error('Identity keys are missing')
+      const network = getNetworkInstance()
+
+      const payloadForRemote = {
+        publicId: profile.publicId,
+        displayName: profile.displayName,
+        edPublicKey: keys.signing.publicKey,
+        xPublicKey: keys.exchange.publicKey
+      }
+
+      // System contact-request message
+      network.sendSystemMessage(parsed.publicId, 'contact-request', payloadForRemote)
+    } catch (err) {
+      console.warn('Failed to send contact request to remote:', err)
+    }
+
     return { ...contact }
   })
 
@@ -141,8 +170,7 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
   ipcMain.handle('contacts:update', (_, payload: unknown) => {
     requireUnlocked()
     initStorage()
-    const p = payload as { id: string; displayName?: string; note?: string }
-    if (!p.id) throw new Error('Invalid contact id')
+    const p = UpdateContactSchema.parse(payload)
     // Update logic, assume storage has updateContact
     // For now, simple update
     const db = getDb()

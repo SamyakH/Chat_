@@ -53,7 +53,10 @@ export async function generateExchangeKeyPair(): Promise<ExchangeKeyPair> {
   }
 }
 
-// Encrypt message with ChaCha20-Poly1305 + Ed25519 signature
+/**
+ * Encrypt message with XSalsa20-Poly1305 (libsodium crypto_secretbox) + Ed25519 signature.
+ * The symmetric key MUST be the output of deriveSessionKey(), which already applies HKDF.
+ */
 export async function encryptMessage(
   plaintext: string,
   sessionKey: Uint8Array,
@@ -102,14 +105,37 @@ export async function decryptMessage(
   return Buffer.from(plaintext).toString('utf-8')
 }
 
-// X25519 ECDH — derive shared session key
+/**
+ * X25519 ECDH — derive shared session key using HKDF-SHA-256.
+ * The returned key is suitable for crypto_secretbox (32 bytes).
+ */
 export async function deriveSessionKey(
   myPrivateKey: Uint8Array,
   theirPublicKey: Uint8Array
 ): Promise<Uint8Array> {
   await initCrypto()
   const s = getSodium()
-  return s.crypto_scalarmult(myPrivateKey, theirPublicKey)
+
+  // Raw ECDH output (32 bytes)
+  const sharedSecret = s.crypto_scalarmult(myPrivateKey, theirPublicKey)
+
+  // HKDF context string to bind this key to messaging use
+  const info = Buffer.from('anon-chat:session-key:v1', 'utf-8')
+  const salt = new Uint8Array(32) // all zeros salt; could be randomized & stored if desired
+
+  const prk = createHash('sha256')
+    .update(Buffer.from(salt))
+    .update(Buffer.from(sharedSecret))
+    .digest()
+
+  const okm = createHash('sha256')
+    .update(prk)
+    .update(info)
+    .update(Buffer.from([0x01]))
+    .digest()
+
+  // crypto_secretbox key must be 32 bytes
+  return new Uint8Array(okm.subarray(0, s.crypto_secretbox_KEYBYTES))
 }
 
 // Sign arbitrary payload
@@ -131,10 +157,14 @@ export async function verifySignature(
   return getSodium().crypto_sign_verify_detached(signature, payload, publicKey)
 }
 
-// SHA-256 fingerprint of two public keys concatenated
+/**
+ * SHA-256 fingerprint of two public keys.
+ * Uses decoded base64 and separate updates to avoid ambiguity.
+ */
 export function computeFingerprint(edPub: string, xPub: string): string {
   return createHash('sha256')
-    .update(Buffer.from(edPub + xPub))
+    .update(Buffer.from(edPub, 'base64'))
+    .update(Buffer.from(xPub, 'base64'))
     .digest('hex')
 }
 

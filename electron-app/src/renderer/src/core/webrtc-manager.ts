@@ -1,5 +1,3 @@
-import { EventEmitter } from 'events'
-
 interface CallState {
   active: boolean
   contactId: string | null
@@ -10,7 +8,41 @@ interface CallState {
   hasRemoteAudio: boolean
 }
 
-export class WebRTCManager extends EventEmitter {
+// Minimal event emitter for browser/Electron renderer
+type Listener = (...args: unknown[]) => void
+
+class SimpleEmitter {
+  private listeners: Map<string, Listener[]> = new Map()
+
+  on(event: string, fn: Listener): void {
+    const arr = this.listeners.get(event) ?? []
+    arr.push(fn)
+    this.listeners.set(event, arr)
+  }
+
+  off(event: string, fn: Listener): void {
+    const arr = this.listeners.get(event)
+    if (!arr) return
+    this.listeners.set(
+      event,
+      arr.filter((l) => l !== fn)
+    )
+  }
+
+  emit(event: string, ...args: unknown[]): void {
+    const arr = this.listeners.get(event)
+    if (!arr) return
+    for (const fn of arr) {
+      try {
+        fn(...args)
+      } catch (err) {
+        console.error('SimpleEmitter listener error', err)
+      }
+    }
+  }
+}
+
+export class WebRTCManager extends SimpleEmitter {
   private static instance: WebRTCManager
   private peerConnection: RTCPeerConnection | null = null
   private dataChannel: RTCDataChannel | null = null
@@ -53,8 +85,11 @@ export class WebRTCManager extends EventEmitter {
     })
 
     pc.onicecandidate = (e) => {
-      if (e.candidate) {
-        window.api.sendSignalingCandidate(e.candidate)
+      if (e.candidate && this.callState.contactId) {
+        window.api.sendSignalingCandidate({
+          contactId: this.callState.contactId,
+          candidate: e.candidate
+        })
       }
     }
 
@@ -141,16 +176,32 @@ export class WebRTCManager extends EventEmitter {
     this.emit('local-stream', this.localStream)
   }
 
-  async handleSignalingMessage(msg: any): Promise<void> {
+  async handleSignalingMessage(msg: unknown): Promise<void> {
+    if (!msg || typeof msg !== 'object') return
+
+    // msgs from main: { protocolVersion, kind, type, senderId, receiverId, data, timestamp }
+    const { type, data, senderId } = msg as {
+      type?: string
+      data?: unknown
+      senderId?: string
+    }
+
+    if (type === 'hangup') {
+      // Remote party ended the call
+      this.endCall()
+      return
+    }
+
     if (!this.peerConnection) {
       this.peerConnection = this.createPeerConnection()
     }
 
-    if (msg.type === 'offer') {
-      await this.peerConnection.setRemoteDescription(msg.offer)
+    if (type === 'offer') {
+      if (!data) return
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data as RTCSessionDescriptionInit))
       this.callState = {
         active: true,
-        contactId: msg.contactId,
+        contactId: senderId ?? null,
         isIncoming: true,
         hasLocalVideo: false,
         hasLocalAudio: false,
@@ -158,10 +209,12 @@ export class WebRTCManager extends EventEmitter {
         hasRemoteAudio: true
       }
       this.emit('incoming-call', this.callState)
-    } else if (msg.type === 'answer') {
-      await this.peerConnection.setRemoteDescription(msg.answer)
-    } else if (msg.type === 'candidate') {
-      await this.peerConnection.addIceCandidate(msg.candidate)
+    } else if (type === 'answer') {
+      if (!data) return
+      await this.peerConnection.setRemoteDescription(new RTCSessionDescription(data as RTCSessionDescriptionInit))
+    } else if (type === 'candidate') {
+      if (!data) return
+      await this.peerConnection.addIceCandidate(new RTCIceCandidate(data))
     }
   }
 

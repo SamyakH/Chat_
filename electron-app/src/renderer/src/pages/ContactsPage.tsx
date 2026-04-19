@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { MouseEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { UserPlus, Users, QrCode } from 'lucide-react'
 import AppLayout from '../components/AppLayout'
@@ -12,22 +13,27 @@ interface ContactRequest {
   createdAt: number
 }
 
-export default function ContactsPage() {
+export default function ContactsPage(): React.ReactNode {
   const [contacts, setContacts] = useState<Contact[]>([])
   const [blockedContacts, setBlockedContacts] = useState<Contact[]>([])
   const [incomingRequests, setIncomingRequests] = useState<ContactRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showBlocked, setShowBlocked] = useState(false)
+  const [contextMenu, setContextMenu] = useState<{
+    contactId: string
+    x: number
+    y: number
+  } | null>(null)
 
-  function load() {
+  function load(): void {
     setLoading(true)
     setError('')
     window.api
       .listContacts()
       .then((c) => {
-        setContacts(c.filter(contact => !contact.isBlocked))
-        setBlockedContacts(c.filter(contact => contact.isBlocked))
+        setContacts(c.filter((contact) => !contact.isBlocked))
+        setBlockedContacts(c.filter((contact) => contact.isBlocked))
       })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Failed to load contacts')
@@ -42,10 +48,21 @@ export default function ContactsPage() {
   }
 
   useEffect(() => {
-    setTimeout(load, 0)
+    load()
+
+    const handler = (): void => {
+      // Reload incoming requests when a new one arrives
+      load()
+    }
+
+    window.api.onIncomingContactRequest(handler)
+
+    return () => {
+      // Cleanup: ipcRenderer will be cleaned up when the page unmounts
+    }
   }, [])
 
-  async function handleDelete(id: string) {
+  async function handleDelete(id: string): Promise<void> {
     if (!confirm('Remove this contact?')) return
     setError('')
     try {
@@ -56,7 +73,7 @@ export default function ContactsPage() {
     }
   }
 
-  async function handleBlock(id: string) {
+  async function handleBlock(id: string): Promise<void> {
     setError('')
     try {
       await window.api.blockContact(id)
@@ -66,7 +83,76 @@ export default function ContactsPage() {
     }
   }
 
-  async function handleUnblock(id: string) {
+  function openContextMenu(e: MouseEvent<HTMLDivElement>, contactId: string): void {
+    e.preventDefault()
+    setContextMenu({
+      contactId,
+      x: e.clientX,
+      y: e.clientY
+    })
+  }
+
+  function closeContextMenu(): void {
+    setContextMenu(null)
+  }
+
+  async function handleContextCopyId(contactId: string): Promise<void> {
+    const contact = contacts.find((c) => c.id === contactId)
+    if (!contact) return
+    try {
+      await navigator.clipboard.writeText(contact.publicId)
+    } catch (err) {
+      console.error('Failed to copy contact ID', err)
+    }
+    closeContextMenu()
+  }
+
+  async function handleContextCopyFingerprint(contactId: string): Promise<void> {
+    const contact = contacts.find((c) => c.id === contactId)
+    if (!contact) return
+    try {
+      await navigator.clipboard.writeText(contact.fingerprint)
+    } catch (err) {
+      console.error('Failed to copy contact fingerprint', err)
+    }
+    closeContextMenu()
+  }
+
+  async function handleContextEdit(contactId: string): Promise<void> {
+    const contact = contacts.find((c) => c.id === contactId)
+    if (!contact) return
+    const newName = prompt('Edit display name', contact.displayName)
+    if (newName === null || !newName.trim()) {
+      closeContextMenu()
+      return
+    }
+    const newNote = prompt('Edit note (optional)', contact.note ?? '')
+    try {
+      await window.api.updateContact({
+        id: contactId,
+        displayName: newName.trim(),
+        note: (newNote ?? '').trim()
+      })
+      load()
+    } catch (err: unknown) {
+      console.error('Failed to update contact', err)
+      setError(err instanceof Error ? err.message : 'Failed to update contact')
+    } finally {
+      closeContextMenu()
+    }
+  }
+
+  async function handleContextBlock(contactId: string): Promise<void> {
+    await handleBlock(contactId)
+    closeContextMenu()
+  }
+
+  async function handleContextDelete(contactId: string): Promise<void> {
+    await handleDelete(contactId)
+    closeContextMenu()
+  }
+
+  async function handleUnblock(id: string): Promise<void> {
     setError('')
     try {
       await window.api.unblockContact(id)
@@ -192,7 +278,7 @@ export default function ContactsPage() {
         )}
 
          {/* Active Contacts List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
+        <div className="flex-1 overflow-y-auto px-6 py-4 content-auto">
           {error ? (
             <div className="flex h-full items-center justify-center">
               <p className="text-sm text-red-400">{error}</p>
@@ -223,21 +309,75 @@ export default function ContactsPage() {
           ) : (
             <div className="space-y-2 max-w-2xl">
               {contacts.map((c) => (
-                <ContactCard
-                  key={c.id}
-                  contact={{
-                    id: c.id,
-                    displayName: c.displayName,
-                    fingerprint: c.fingerprint,
-                    note: c.note
-                  }}
-                  onDelete={handleDelete}
-                  onBlock={handleBlock}
-                />
+                <div key={c.id} onContextMenu={(e) => openContextMenu(e, c.id)}>
+                  <ContactCard
+                    contact={{
+                      id: c.id,
+                      displayName: c.displayName,
+                      fingerprint: c.fingerprint,
+                      note: c.note
+                    }}
+                    onDelete={handleDelete}
+                    onBlock={handleBlock}
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
+
+        {contextMenu && (
+          <div
+            className="fixed inset-0 z-50"
+            onClick={closeContextMenu}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              closeContextMenu()
+            }}
+          >
+            <div
+              className="absolute bg-gray-900 border border-gray-700 rounded-lg shadow-lg py-1 text-sm text-gray-100"
+              style={{ top: contextMenu.y, left: contextMenu.x }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextCopyId(contextMenu.contactId)}
+              >
+                Copy Public ID
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextCopyFingerprint(contextMenu.contactId)}
+              >
+                Copy Fingerprint
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextEdit(contextMenu.contactId)}
+              >
+                Edit Contact
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-gray-800"
+                onClick={() => handleContextBlock(contextMenu.contactId)}
+              >
+                Block Contact
+              </button>
+              <button
+                type="button"
+                className="block w-full text-left px-3 py-1.5 hover:bg-red-900/60 text-red-300"
+                onClick={() => handleContextDelete(contextMenu.contactId)}
+              >
+                Delete Contact
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </AppLayout>
   )

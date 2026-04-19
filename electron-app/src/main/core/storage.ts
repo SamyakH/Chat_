@@ -80,9 +80,11 @@ export function initStorage(): void {
 
     CREATE TABLE IF NOT EXISTS session_nonces (
       id          TEXT PRIMARY KEY,
-      nonce_value TEXT NOT NULL UNIQUE,
+      sender_id   TEXT NOT NULL,
+      nonce_value TEXT NOT NULL,
       used_at     INTEGER NOT NULL,
-      expires_at  INTEGER NOT NULL
+      expires_at  INTEGER NOT NULL,
+      UNIQUE(sender_id, nonce_value)
     );
 
     CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
@@ -105,6 +107,78 @@ export function initStorage(): void {
     CREATE INDEX IF NOT EXISTS idx_requests_status ON contact_requests(status);
     CREATE INDEX IF NOT EXISTS idx_requests_direction ON contact_requests(direction);
   `)
+
+  // ── Lightweight migrations ────────────────────────────────────────────────
+
+ // 1) Ensure contacts table has public_id column (older DBs may not)
+  if (!hasColumn(database, 'contacts', 'public_id')) {
+    // We can safely drop contacts and related conversations/messages
+    // because they are derived from contact requests / QR imports.
+    database.exec('DROP TABLE IF EXISTS messages')
+    database.exec('DROP TABLE IF EXISTS conversations')
+    database.exec('DROP TABLE IF EXISTS contacts')
+
+    database.exec(`
+      CREATE TABLE contacts (
+        id           TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        fingerprint  TEXT NOT NULL UNIQUE,
+        ed_public_key TEXT NOT NULL,
+        x_public_key  TEXT NOT NULL,
+        public_id    TEXT NOT NULL UNIQUE,
+        note         TEXT DEFAULT '',
+        is_blocked   INTEGER DEFAULT 0,
+        created_at   INTEGER NOT NULL,
+        last_message_at INTEGER
+      );
+
+      CREATE TABLE conversations (
+        id              TEXT PRIMARY KEY,
+        contact_id      TEXT NOT NULL,
+        created_at      INTEGER NOT NULL,
+        last_activity_at INTEGER,
+        message_count   INTEGER DEFAULT 0,
+        FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE messages (
+        id              TEXT PRIMARY KEY,
+        conversation_id TEXT NOT NULL,
+        contact_id      TEXT NOT NULL,
+        direction       TEXT NOT NULL CHECK(direction IN ('incoming','outgoing')),
+        plaintext       TEXT NOT NULL DEFAULT '',
+        ciphertext      TEXT,
+        nonce           TEXT,
+        signature       TEXT,
+        delivery_status TEXT NOT NULL DEFAULT 'sent',
+        message_type    TEXT NOT NULL DEFAULT 'TEXT',
+        is_edited       INTEGER DEFAULT 0,
+        is_deleted      INTEGER DEFAULT 0,
+        created_at      INTEGER NOT NULL,
+        FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_messages_conv ON messages(conversation_id);
+      CREATE INDEX IF NOT EXISTS idx_messages_contact ON messages(contact_id);
+      CREATE INDEX IF NOT EXISTS idx_contacts_fp ON contacts(fingerprint);
+    `)
+  }
+
+  // 2) Ensure session_nonces has sender_id column (older DBs may not)
+  if (!hasColumn(database, 'session_nonces', 'sender_id')) {
+    database.exec('DROP TABLE IF EXISTS session_nonces')
+    database.exec(`
+      CREATE TABLE session_nonces (
+        id          TEXT PRIMARY KEY,
+        sender_id   TEXT NOT NULL,
+        nonce_value TEXT NOT NULL,
+        used_at     INTEGER NOT NULL,
+        expires_at  INTEGER NOT NULL,
+        UNIQUE(sender_id, nonce_value)
+      );
+    `)
+    database.exec(`CREATE INDEX IF NOT EXISTS idx_nonces_exp ON session_nonces(expires_at);`)
+  }
 }
 
 export function getDb(): Database.Database {
@@ -259,6 +333,7 @@ export function acceptContactRequest(requestId: string): void {
       edPublicKey: request.ed_public_key,
       xPublicKey: request.x_public_key,
       note: 'Accepted contact request',
+      publicId: request.remote_public_id,
       createdAt: Date.now()
     })
 
@@ -317,6 +392,7 @@ export function storeMessage(msg: {
     createdAt
   )
 
+  // Update conversation activity and message count
   d.prepare(
     `
     UPDATE conversations
@@ -324,6 +400,15 @@ export function storeMessage(msg: {
     WHERE id = ?
   `
   ).run(createdAt, msg.conversationId)
+
+  // Also track last communication timestamp per contact
+  d.prepare(
+    `
+    UPDATE contacts
+    SET last_message_at = ?
+    WHERE id = ?
+  `
+  ).run(createdAt, msg.contactId)
 }
 
 export function loadMessages(conversationId: string): unknown[] {
@@ -351,21 +436,23 @@ export function softDeleteMessage(messageId: string): void {
 
 // ── Nonce tracking ────────────────────────────────────────────────────────────
 
-export function trackNonce(nonceValue: string): boolean {
+export function trackNonce(senderId: string, nonceValue: string): boolean {
   const d = getDb()
   // Purge expired nonces first
   d.prepare('DELETE FROM session_nonces WHERE expires_at < ?').run(Date.now())
 
-  const exists = d.prepare('SELECT id FROM session_nonces WHERE nonce_value = ?').get(nonceValue)
+  const exists = d
+    .prepare('SELECT id FROM session_nonces WHERE sender_id = ? AND nonce_value = ?')
+    .get(senderId, nonceValue)
 
-  if (exists) return false // Replay detected
+  if (exists) return false // Replay detected for this sender
 
   d.prepare(
     `
-    INSERT INTO session_nonces (id, nonce_value, used_at, expires_at)
-    VALUES (?,?,?,?)
+    INSERT INTO session_nonces (id, sender_id, nonce_value, used_at, expires_at)
+    VALUES (?,?,?,?,?)
   `
-  ).run(randomUUID(), nonceValue, Date.now(), Date.now() + 86_400_000)
+  ).run(randomUUID(), senderId, nonceValue, Date.now(), Date.now() + 86_400_000)
 
   return true
 }
