@@ -9,9 +9,11 @@ import {
   updateDeliveryStatus,
   getIdentityKeys,
   getContactById,
-  initStorage
+  initStorage,
+  getDb
 } from '../core/storage'
 import { initCrypto, encryptMessage, deriveSessionKey } from '../core/cryptography'
+import { getNetworkInstance } from '../core/networking'
 import type { Message } from '../../shared/api'
 
 const SendSchema = z.object({
@@ -96,7 +98,21 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
       createdAt
     }
     storeMessage(msg)
+    // Send via network
+    getNetworkInstance().sendMessage((contact as any).public_id, msg).catch(console.error)
     return msg
+  })
+
+  ipcMain.handle('messages:edit', async (_, payload: unknown) => {
+    requireUnlocked()
+    initStorage()
+    const p = payload as { messageId: string; text: string }
+    if (!p.messageId || !p.text) throw new Error('Invalid payload')
+    // For simplicity, update plaintext and mark edited
+    const db = getDb()
+    db.prepare('UPDATE messages SET plaintext = ?, is_edited = 1 WHERE id = ?').run(p.text, p.messageId)
+    const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(p.messageId) as any
+    return normalizeMessage(msg)
   })
 
   ipcMain.handle('messages:delete', (_, messageId: unknown) => {

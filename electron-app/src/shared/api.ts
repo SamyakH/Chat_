@@ -12,6 +12,7 @@ export interface IdentityState {
 
 export interface Contact {
   id: string
+  publicId: string
   displayName: string
   fingerprint: string
   edPublicKey: string
@@ -63,6 +64,16 @@ export interface Api {
   updateIdentityProfile(p: { displayName: string; statusLine: string }): Promise<IdentityState>
   regenerateIdentityId(): Promise<IdentityState>
   getQrCode(): Promise<QrCodePayload>
+  burnAccount(): Promise<void>
+
+  listIncomingContactRequests(): Promise<{
+    id: string
+    publicId: string
+    displayName: string
+    createdAt: number
+  }[]>
+  acceptContactRequest(requestId: string): Promise<{ ok: boolean }>
+  declineContactRequest(requestId: string): Promise<{ ok: boolean }>
 
   initWorkspace(): Promise<{ ok: boolean }>
   getWorkspaceSummary(): Promise<WorkspaceSummary>
@@ -76,10 +87,12 @@ export interface Api {
   }): Promise<Contact>
   addContactFromQr(p: { qrData: string }): Promise<Contact>
   deleteContact(id: string): Promise<{ ok: boolean }>
+  updateContact: (p: { id: string; displayName?: string; note?: string }) => Promise<Contact>
   blockContact(id: string): Promise<{ ok: boolean }>
 
   loadMessages(conversationId: string): Promise<Message[]>
   sendMessage(p: { contactId: string; conversationId: string; text: string }): Promise<Message>
+  editMessage: (p: { messageId: string; text: string }) => Promise<Message>
   deleteMessage(messageId: string): Promise<{ ok: boolean }>
   updateMessageStatus(p: {
     messageId: string
@@ -87,4 +100,14 @@ export interface Api {
   }): Promise<{ ok: boolean }>
 
   executeWipe(p: { confirmation: 'DESTROY' }): Promise<{ ok: boolean }>
+
+  // Calling
+  startCall: (contactId: string) => Promise<void>
+  answerCall: (contactId: string) => Promise<void>
+  hangupCall: (contactId: string) => Promise<void>
+  sendSignalingMessage: (p: { contactId: string; type: string; data: any }) => Promise<void>
+  sendSignalingCandidate: (candidate: any) => Promise<void>
+  sendCallOffer: (contactId: string, offer: any) => Promise<void>
+  sendCallAnswer: (contactId: string, answer: any) => Promise<void>
+  onSignalingMessage: (callback: (msg: any) => void) => void
 }

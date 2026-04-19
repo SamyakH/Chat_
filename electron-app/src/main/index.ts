@@ -5,9 +5,13 @@ import { registerWorkspaceIpc } from './ipc/workspace.ipc'
 import { registerContactsIpc } from './ipc/contacts.ipc'
 import { registerMessagesIpc } from './ipc/messages.ipc'
 import { registerWipeIpc } from './ipc/wipe.ipc'
+import { registerCallsIpc } from './ipc/calls.ipc'
 
 const isDev = !app.isPackaged
 let ipcRegistered = false
+let mainWindow: BrowserWindow | null = null
+
+export { mainWindow }
 
 function registerIpcHandlers(): void {
   if (ipcRegistered) return
@@ -17,6 +21,7 @@ function registerIpcHandlers(): void {
   registerContactsIpc(ipcMain)
   registerMessagesIpc(ipcMain)
   registerWipeIpc(ipcMain)
+  registerCallsIpc(ipcMain)
 
   ipcRegistered = true
 }
@@ -37,6 +42,8 @@ function createWindow(): void {
       sandbox: true
     }
   })
+
+  mainWindow = win
 
   if (isDev) {
     win.loadURL('http://localhost:5173')

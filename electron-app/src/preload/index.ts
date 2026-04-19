@@ -20,6 +20,9 @@ const api: Api = {
 
   // ── Contacts ──────────────────────────────────────────────────────────────
   listContacts: () => ipcRenderer.invoke('contacts:list'),
+  listIncomingContactRequests: () => ipcRenderer.invoke('contacts:requests:list'),
+  acceptContactRequest: (id: string) => ipcRenderer.invoke('contacts:request:accept', id),
+  declineContactRequest: (id: string) => ipcRenderer.invoke('contacts:request:decline', id),
   addContact: (p: {
     displayName: string
     edPublicKey: string
@@ -28,18 +31,34 @@ const api: Api = {
   }) => ipcRenderer.invoke('contacts:add', p),
   addContactFromQr: (p: { qrData: string }) => ipcRenderer.invoke('contacts:add-from-qr', p),
   deleteContact: (id: string) => ipcRenderer.invoke('contacts:delete', id),
+  updateContact: (p: { id: string; displayName?: string; note?: string }) =>
+    ipcRenderer.invoke('contacts:update', p),
   blockContact: (id: string) => ipcRenderer.invoke('contacts:block', id),
 
   // ── Messages ──────────────────────────────────────────────────────────────
   loadMessages: (conversationId: string) => ipcRenderer.invoke('messages:load', conversationId),
   sendMessage: (p: { contactId: string; conversationId: string; text: string }) =>
     ipcRenderer.invoke('messages:send', p),
+  editMessage: (p: { messageId: string; text: string }) => ipcRenderer.invoke('messages:edit', p),
   deleteMessage: (messageId: string) => ipcRenderer.invoke('messages:delete', messageId),
   updateMessageStatus: (p: { messageId: string; status: 'sent' | 'delivered' | 'failed' }) =>
     ipcRenderer.invoke('messages:update-status', p),
 
   // ── Emergency Wipe ────────────────────────────────────────────────────────
-  executeWipe: (p: { confirmation: 'DESTROY' }) => ipcRenderer.invoke('wipe:execute', p)
+  executeWipe: (p: { confirmation: 'DESTROY' }) => ipcRenderer.invoke('wipe:execute', p),
+
+  // ── Calling ───────────────────────────────────────────────────────────────
+  startCall: (contactId: string) => ipcRenderer.invoke('calls:start', contactId),
+  answerCall: (contactId: string) => ipcRenderer.invoke('calls:answer', contactId),
+  hangupCall: (contactId: string) => ipcRenderer.invoke('calls:hangup', contactId),
+  sendSignalingMessage: (p: { contactId: string; type: string; data: any }) =>
+    ipcRenderer.invoke('calls:signaling', p),
+  sendSignalingCandidate: (candidate: any) => ipcRenderer.invoke('calls:candidate', candidate),
+  sendCallOffer: (contactId: string, offer: any) => ipcRenderer.invoke('calls:offer', contactId, offer),
+  sendCallAnswer: (contactId: string, answer: any) => ipcRenderer.invoke('calls:answer-send', contactId, answer),
+  onSignalingMessage: (callback: (msg: any) => void) => {
+    ipcRenderer.on('signaling:message', (_, msg) => callback(msg))
+  }
 }
 
 contextBridge.exposeInMainWorld('api', api)

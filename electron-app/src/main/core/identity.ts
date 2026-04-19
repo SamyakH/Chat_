@@ -2,8 +2,10 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'crypto'
 import { app } from 'electron'
 import fs from 'fs'
 import path from 'path'
-import { initCrypto, generateSigningKeyPair, generateExchangeKeyPair } from './cryptography'
-import { closeStorage, initStorage, storeIdentityKeys } from './storage'
+import { initCrypto, generateSigningKeyPair, generateExchangeKeyPair, decryptMessage, deriveSessionKey } from './cryptography'
+import { closeStorage, initStorage, storeIdentityKeys, getContactByPublicId, storeMessage, getIdentityKeys } from './storage'
+import { initializeNetwork, getNetworkInstance } from './networking'
+import { mainWindow } from '../index'
 
 export interface IdentityProfile {
   displayName: string
@@ -80,18 +82,8 @@ export function getIdentityState(): IdentityState {
   return makeState(readIdentity())
 }
 
-const unlockedKeyMaterial: Uint8Array | null = null
-
 export function requireUnlocked(): void {
   if (!isUnlocked) throw new Error('Unlock the app to continue.')
-}
-
-export function getUnlockedKeyMaterial(): Uint8Array {
-  requireUnlocked()
-  if (!unlockedKeyMaterial) {
-    throw new Error('Key material not available')
-  }
-  return unlockedKeyMaterial
 }
 
 export function getIdentityProfile(): IdentityProfile {
@@ -175,12 +167,26 @@ export function unlockIdentity(passcode: string): IdentityState {
     throw new Error('Failed to initialize secure storage')
   }
 
+  // Initialize network
+  initializeNetwork(identity.profile.publicId)
+  getNetworkInstance().on('message:received', handleIncomingMessage)
+  getNetworkInstance().on('signaling:received', (msg) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('signaling:message', msg)
+    }
+  })
+
   return makeState(identity)
 }
 
 export function lockIdentity(): IdentityState {
   isUnlocked = false
   closeStorage()
+  try {
+    getNetworkInstance().shutdown()
+  } catch {
+    // Ignore if not initialized
+  }
   return makeState(readIdentity())
 }
 
@@ -226,4 +232,47 @@ export function regenerateIdentityPublicId(): IdentityState {
 
   writeIdentity(identity)
   return makeState(identity)
+}
+
+async function handleIncomingMessage(msg: any): Promise<void> {
+  try {
+    await initCrypto()
+    const keys = getIdentityKeys()
+    if (!keys) return
+
+    const contact = getContactByPublicId(msg.senderId) as any
+    if (!contact) return // Unknown sender
+
+    if (typeof contact.x_public_key !== 'string') return
+
+    const myPrivate = Buffer.from(keys.exchange.privateKey, 'base64')
+    const theirPublic = Buffer.from(contact.x_public_key, 'base64')
+    const sessionKey = await deriveSessionKey(myPrivate, theirPublic)
+
+    const packet = {
+      ciphertext: msg.data.ciphertext,
+      nonce: msg.data.nonce,
+      signature: msg.data.signature
+    }
+    const plaintext = await decryptMessage(packet, sessionKey, Buffer.from(contact.ed_public_key, 'base64'))
+
+    const message = {
+      id: msg.data.id,
+      conversationId: msg.data.conversationId,
+      contactId: contact.id,
+      direction: 'incoming' as const,
+      plaintext,
+      ciphertext: msg.data.ciphertext,
+      nonce: msg.data.nonce,
+      signature: msg.data.signature,
+      deliveryStatus: 'delivered',
+      messageType: 'TEXT',
+      isEdited: false,
+      isDeleted: false,
+      createdAt: msg.timestamp
+    }
+    storeMessage(message)
+  } catch (err) {
+    console.error('Failed to handle incoming message:', err)
+  }
 }

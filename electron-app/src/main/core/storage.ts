@@ -3,10 +3,12 @@ import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'crypto'
 import { requireUnlocked } from './identity'
+import Database from 'better-sqlite3'
+import { computeFingerprint } from './cryptography'
 
 // Using better-sqlite3 (synchronous, fast)
 // Note: For production, replace with @journeyapps/sqlcipher for full AES-256-GCM encryption
-let db: import('better-sqlite3').Database | null = null
+let db: Database.Database | null = null
 
 export function getDbPath(): string {
   const dir = path.join(app.getPath('userData'), 'anon-chat')
@@ -19,7 +21,6 @@ export function initStorage(): void {
   if (db) return
 
   // Dynamic require keeps native module out of renderer bundle
-  const Database = require('better-sqlite3')
   db = new Database(getDbPath())
 
   const database = db!
@@ -39,6 +40,8 @@ export function initStorage(): void {
       created_at   INTEGER NOT NULL,
       last_message_at INTEGER
     );
+    -- Add public_id column if not exists
+    database.prepare('ALTER TABLE contacts ADD COLUMN public_id TEXT').run().catch(() => {})
 
     CREATE TABLE IF NOT EXISTS conversations (
       id              TEXT PRIMARY KEY,
@@ -84,10 +87,25 @@ export function initStorage(): void {
     CREATE INDEX IF NOT EXISTS idx_messages_contact ON messages(contact_id);
     CREATE INDEX IF NOT EXISTS idx_contacts_fp ON contacts(fingerprint);
     CREATE INDEX IF NOT EXISTS idx_nonces_exp ON session_nonces(expires_at);
+    
+    CREATE TABLE IF NOT EXISTS contact_requests (
+      id                  TEXT PRIMARY KEY,
+      remote_public_id    TEXT NOT NULL UNIQUE,
+      display_name        TEXT NOT NULL,
+      ed_public_key       TEXT NOT NULL,
+      x_public_key        TEXT NOT NULL,
+      direction           TEXT NOT NULL CHECK(direction IN ('incoming','outgoing')),
+      status              TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','accepted','declined')),
+      created_at          INTEGER NOT NULL,
+      updated_at          INTEGER NOT NULL
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_requests_status ON contact_requests(status);
+    CREATE INDEX IF NOT EXISTS idx_requests_direction ON contact_requests(direction);
   `)
 }
 
-function getDb(): import('better-sqlite3').Database {
+export function getDb(): Database.Database {
   if (!db) throw new Error('Storage not initialized. Call initStorage() first.')
   return db
 }
@@ -112,6 +130,7 @@ export function storeContact(contact: {
   edPublicKey: string
   xPublicKey: string
   note?: string
+  publicId?: string
   createdAt?: number
 }): void {
   const createdAt = contact.createdAt ?? Date.now()
@@ -119,8 +138,8 @@ export function storeContact(contact: {
     .prepare(
       `
       INSERT INTO contacts
-        (id, display_name, fingerprint, ed_public_key, x_public_key, note, created_at)
-      VALUES (?,?,?,?,?,?,?)
+        (id, display_name, fingerprint, ed_public_key, x_public_key, note, public_id, created_at)
+      VALUES (?,?,?,?,?,?,?,?)
     `
     )
     .run(
@@ -130,6 +149,7 @@ export function storeContact(contact: {
       contact.edPublicKey,
       contact.xPublicKey,
       contact.note ?? '',
+      contact.publicId ?? null,
       createdAt
     )
 }
@@ -147,13 +167,108 @@ export function getContactById(id: string): unknown | null {
       .get(id) as unknown) || null
   )
 }
-
+export function getContactByPublicId(publicId: string): unknown | null {
+  return (
+    (getDb()
+      .prepare('SELECT * FROM contacts WHERE public_id = ? AND is_blocked = 0')
+      .get(publicId) as any) || null
+  )
+}
 export function blockContact(id: string): void {
   getDb().prepare('UPDATE contacts SET is_blocked = 1 WHERE id = ?').run(id)
 }
 
+export function loadBlockedContacts(): unknown[] {
+  return getDb()
+    .prepare('SELECT * FROM contacts WHERE is_blocked = 1 ORDER BY created_at DESC')
+    .all()
+}
+
+export function unblockContact(id: string): void {
+  getDb().prepare('UPDATE contacts SET is_blocked = 0 WHERE id = ?').run(id)
+}
+
 export function deleteContact(id: string): void {
   getDb().prepare('DELETE FROM contacts WHERE id = ?').run(id)
+}
+
+// ── Contact Requests ─────────────────────────────────────────────────────────
+
+export function storeContactRequest(request: {
+  id: string
+  remotePublicId: string
+  displayName: string
+  edPublicKey: string
+  xPublicKey: string
+  direction: 'incoming' | 'outgoing'
+  status?: 'pending' | 'accepted' | 'declined'
+  createdAt?: number
+  updatedAt?: number
+}): void {
+  const now = Date.now()
+  getDb().prepare(`
+    INSERT OR REPLACE INTO contact_requests
+      (id, remote_public_id, display_name, ed_public_key, x_public_key, direction, status, created_at, updated_at)
+    VALUES (?,?,?,?,?,?,?,?,?)
+  `).run(
+    request.id,
+    request.remotePublicId,
+    request.displayName,
+    request.edPublicKey,
+    request.xPublicKey,
+    request.direction,
+    request.status ?? 'pending',
+    request.createdAt ?? now,
+    request.updatedAt ?? now
+  )
+}
+
+export function loadIncomingContactRequests(): {
+  id: string
+  publicId: string
+  displayName: string
+  createdAt: number
+}[] {
+  return getDb()
+    .prepare('SELECT * FROM contact_requests WHERE direction = ? AND status = ? ORDER BY created_at DESC')
+    .all('incoming', 'pending')
+    .map((record: any) => ({
+      id: record.id,
+      publicId: record.remote_public_id,
+      displayName: record.display_name,
+      createdAt: record.created_at
+    }))
+}
+
+export function acceptContactRequest(requestId: string): void {
+  const db = getDb()
+  const request = db
+    .prepare('SELECT * FROM contact_requests WHERE id = ?')
+    .get(requestId) as any
+
+  if (!request) throw new Error('Contact request not found')
+
+  db.transaction(() => {
+    // Add contact to local database
+    storeContact({
+      id: request.id,
+      displayName: request.display_name,
+      fingerprint: computeFingerprint(request.ed_public_key, request.x_public_key),
+      edPublicKey: request.ed_public_key,
+      xPublicKey: request.x_public_key,
+      note: 'Accepted contact request',
+      createdAt: Date.now()
+    })
+
+    // Mark request as accepted
+    db.prepare('UPDATE contact_requests SET status = ?, updated_at = ? WHERE id = ?')
+      .run('accepted', Date.now(), requestId)
+  })()
+}
+
+export function declineContactRequest(requestId: string): void {
+  getDb().prepare('UPDATE contact_requests SET status = ?, updated_at = ? WHERE id = ?')
+    .run('declined', Date.now(), requestId)
 }
 
 // ── Messages ──────────────────────────────────────────────────────────────────
