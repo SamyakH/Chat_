@@ -5,6 +5,7 @@ import AppLayout from '../components/AppLayout'
 
 interface ParsedContactPayload {
   displayName?: string
+  publicId?: string
   edPublicKey: string
   xPublicKey: string
 }
@@ -30,10 +31,11 @@ export default function AddContactPage() {
     if (
       !parsed ||
       typeof parsed !== 'object' ||
+      typeof (parsed as ParsedContactPayload).publicId !== 'string' ||
       typeof (parsed as ParsedContactPayload).edPublicKey !== 'string' ||
       typeof (parsed as ParsedContactPayload).xPublicKey !== 'string'
     ) {
-      throw new Error('Shared payload must include both signing and exchange public keys.')
+      throw new Error('Shared payload must include publicId, signing and exchange public keys.')
     }
 
     return parsed as ParsedContactPayload
@@ -62,6 +64,7 @@ export default function AddContactPage() {
     try {
       await window.api.addContact({
         displayName: displayName.trim(),
+        publicId: parsedPayload.publicId!.trim(),
         edPublicKey: parsedPayload.edPublicKey.trim(),
         xPublicKey: parsedPayload.xPublicKey.trim(),
         note: note.trim()

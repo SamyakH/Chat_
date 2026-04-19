@@ -162,9 +162,10 @@ export function unlockIdentity(passcode: string): IdentityState {
   // Initialize storage after successful unlock
   try {
     initStorage()
-  } catch {
+  } catch (err) {
     isUnlocked = false
-    throw new Error('Failed to initialize secure storage')
+    console.error('Storage initialization failed:', err)
+    throw new Error('Failed to initialize secure storage: ' + (err instanceof Error ? err.message : String(err)))
   }
 
   // Initialize network

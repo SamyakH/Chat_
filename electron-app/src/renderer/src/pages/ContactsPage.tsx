@@ -14,16 +14,21 @@ interface ContactRequest {
 
 export default function ContactsPage() {
   const [contacts, setContacts] = useState<Contact[]>([])
+  const [blockedContacts, setBlockedContacts] = useState<Contact[]>([])
   const [incomingRequests, setIncomingRequests] = useState<ContactRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showBlocked, setShowBlocked] = useState(false)
 
   function load() {
     setLoading(true)
     setError('')
     window.api
       .listContacts()
-      .then((c) => setContacts(c))
+      .then((c) => {
+        setContacts(c.filter(contact => !contact.isBlocked))
+        setBlockedContacts(c.filter(contact => contact.isBlocked))
+      })
       .catch((err: unknown) => {
         setError(err instanceof Error ? err.message : 'Failed to load contacts')
       })
@@ -58,6 +63,16 @@ export default function ContactsPage() {
       load()
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to block contact')
+    }
+  }
+
+  async function handleUnblock(id: string) {
+    setError('')
+    try {
+      await window.api.unblockContact(id)
+      load()
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to unblock contact')
     }
   }
 
@@ -125,7 +140,58 @@ export default function ContactsPage() {
           </div>
         )}
 
-         {/* List */}
+        {/* Blocked Contacts Toggle */}
+        {blockedContacts.length > 0 && (
+          <div className="px-6 py-3 border-b border-gray-800">
+            <button 
+              onClick={() => setShowBlocked(!showBlocked)}
+              className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-300 transition-colors"
+            >
+              <span className="w-2 h-2 rounded-full bg-red-500"></span>
+              Blocked Contacts ({blockedContacts.length})
+              <svg className={`w-4 h-4 transition-transform ${showBlocked ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        {/* Blocked Contacts List */}
+        {showBlocked && blockedContacts.length > 0 && (
+          <div className="px-6 py-4 border-b border-gray-800 bg-gray-900/50">
+            <div className="space-y-2 max-w-2xl">
+              {blockedContacts.map((c) => (
+                <div key={c.id} className="bg-gray-900 border border-red-900/50 rounded-xl p-4 opacity-70">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-white font-medium flex items-center gap-2">
+                        {c.displayName}
+                        <span className="text-xs text-red-400 bg-red-900/30 px-1.5 py-0.5 rounded">Blocked</span>
+                      </p>
+                      <p className="text-gray-500 text-xs font-mono">{c.fingerprint?.slice(0, 16)}...</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleUnblock(c.id)}
+                        className="bg-gray-700 hover:bg-gray-600 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+                      >
+                        Unblock
+                      </button>
+                      <button
+                        onClick={() => handleDelete(c.id)}
+                        className="bg-red-900/50 hover:bg-red-800 text-white px-3 py-1.5 rounded-lg text-sm font-medium"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+         {/* Active Contacts List */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {error ? (
             <div className="flex h-full items-center justify-center">

@@ -79,8 +79,10 @@ export interface Api {
   getWorkspaceSummary(): Promise<WorkspaceSummary>
 
   listContacts(): Promise<Contact[]>
+  listBlockedContacts(): Promise<Contact[]>
   addContact(p: {
     displayName: string
+    publicId: string
     edPublicKey: string
     xPublicKey: string
     note?: string
@@ -89,6 +91,7 @@ export interface Api {
   deleteContact(id: string): Promise<{ ok: boolean }>
   updateContact: (p: { id: string; displayName?: string; note?: string }) => Promise<Contact>
   blockContact(id: string): Promise<{ ok: boolean }>
+  unblockContact(id: string): Promise<{ ok: boolean }>
 
   loadMessages(conversationId: string): Promise<Message[]>
   sendMessage(p: { contactId: string; conversationId: string; text: string }): Promise<Message>

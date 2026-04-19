@@ -20,11 +20,13 @@ const api: Api = {
 
   // ── Contacts ──────────────────────────────────────────────────────────────
   listContacts: () => ipcRenderer.invoke('contacts:list'),
+  listBlockedContacts: () => ipcRenderer.invoke('contacts:blocked:list'),
   listIncomingContactRequests: () => ipcRenderer.invoke('contacts:requests:list'),
   acceptContactRequest: (id: string) => ipcRenderer.invoke('contacts:request:accept', id),
   declineContactRequest: (id: string) => ipcRenderer.invoke('contacts:request:decline', id),
   addContact: (p: {
     displayName: string
+    publicId: string
     edPublicKey: string
     xPublicKey: string
     note?: string
@@ -34,6 +36,7 @@ const api: Api = {
   updateContact: (p: { id: string; displayName?: string; note?: string }) =>
     ipcRenderer.invoke('contacts:update', p),
   blockContact: (id: string) => ipcRenderer.invoke('contacts:block', id),
+  unblockContact: (id: string) => ipcRenderer.invoke('contacts:unblock', id),
 
   // ── Messages ──────────────────────────────────────────────────────────────
   loadMessages: (conversationId: string) => ipcRenderer.invoke('messages:load', conversationId),

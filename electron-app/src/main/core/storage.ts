@@ -2,7 +2,6 @@ import { app } from 'electron'
 import path from 'path'
 import fs from 'fs'
 import { randomUUID } from 'crypto'
-import { requireUnlocked } from './identity'
 import Database from 'better-sqlite3'
 import { computeFingerprint } from './cryptography'
 
@@ -16,8 +15,12 @@ export function getDbPath(): string {
   return path.join(dir, 'chat.db')
 }
 
+function hasColumn(database: Database.Database, tableName: string, columnName: string): boolean {
+  const columns = database.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+  return columns.some((column) => column.name === columnName)
+}
+
 export function initStorage(): void {
-  requireUnlocked()
   if (db) return
 
   // Dynamic require keeps native module out of renderer bundle
@@ -35,13 +38,12 @@ export function initStorage(): void {
       fingerprint  TEXT NOT NULL UNIQUE,
       ed_public_key TEXT NOT NULL,
       x_public_key  TEXT NOT NULL,
+      public_id    TEXT NOT NULL UNIQUE,
       note         TEXT DEFAULT '',
       is_blocked   INTEGER DEFAULT 0,
       created_at   INTEGER NOT NULL,
       last_message_at INTEGER
     );
-    -- Add public_id column if not exists
-    database.prepare('ALTER TABLE contacts ADD COLUMN public_id TEXT').run().catch(() => {})
 
     CREATE TABLE IF NOT EXISTS conversations (
       id              TEXT PRIMARY KEY,
@@ -130,7 +132,7 @@ export function storeContact(contact: {
   edPublicKey: string
   xPublicKey: string
   note?: string
-  publicId?: string
+  publicId: string
   createdAt?: number
 }): void {
   const createdAt = contact.createdAt ?? Date.now()
@@ -149,7 +151,7 @@ export function storeContact(contact: {
       contact.edPublicKey,
       contact.xPublicKey,
       contact.note ?? '',
-      contact.publicId ?? null,
+      contact.publicId,
       createdAt
     )
 }

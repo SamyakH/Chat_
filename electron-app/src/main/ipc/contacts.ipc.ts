@@ -21,6 +21,7 @@ import type { Contact } from '../../shared/api'
 
 const AddContactSchema = z.object({
   displayName: z.string().min(1).max(60),
+  publicId: z.string().min(1),
   edPublicKey: z.string().min(10),
   xPublicKey: z.string().min(10),
   note: z.string().max(200).optional().default('')
@@ -52,12 +53,12 @@ function makeContactRecord(contact: {
   edPublicKey: string
   xPublicKey: string
   note: string
-  publicId?: string
+  publicId: string
 }): Contact {
   const createdAt = Date.now()
   return {
     ...contact,
-    publicId: contact.publicId || '',
+    publicId: contact.publicId,
     isBlocked: false,
     createdAt,
     lastMessageAt: null
@@ -101,6 +102,7 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     const contact = makeContactRecord({
       id: randomUUID(),
       displayName: parsed.displayName,
+      publicId: parsed.publicId,
       fingerprint,
       edPublicKey: parsed.edPublicKey,
       xPublicKey: parsed.xPublicKey,
@@ -199,6 +201,7 @@ export function registerContactsIpc(ipcMain: IpcMain): void {
     const contact = makeContactRecord({
       id: randomUUID(),
       displayName,
+      publicId,
       fingerprint,
       edPublicKey,
       xPublicKey,

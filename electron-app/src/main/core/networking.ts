@@ -169,8 +169,8 @@ export class P2PNetwork extends EventEmitter {
     recipientId: string,
     message: any
   ): Promise<void> {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      // Queue message for later delivery
+    if (!this.ws || this.ws.readyState !== 1) {
+      // Queue message for later delivery (readyState 1 = OPEN)
       this.messageQueue.push({
         type: 'text',
         senderId: this.localPeerId,

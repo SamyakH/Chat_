@@ -108,7 +108,10 @@ export function registerMessagesIpc(ipcMain: IpcMain): void {
     initStorage()
     const p = payload as { messageId: string; text: string }
     if (!p.messageId || !p.text) throw new Error('Invalid payload')
-    // For simplicity, update plaintext and mark edited
+    
+    // Update plaintext and mark as edited
+    // Note: ciphertext remains immutable (original encrypted version sent to peer)
+    // Only the local plaintext display is updated
     const db = getDb()
     db.prepare('UPDATE messages SET plaintext = ?, is_edited = 1 WHERE id = ?').run(p.text, p.messageId)
     const msg = db.prepare('SELECT * FROM messages WHERE id = ?').get(p.messageId) as any
